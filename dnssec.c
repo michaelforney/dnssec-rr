@@ -82,27 +82,14 @@ dname_hash(const char *name, const br_hash_class **hc)
 }
 
 struct dnskey *
-dnskey_new(int algorithm, unsigned flags, const struct key *sk)
+dnskey_new(unsigned flags, const struct key *sk)
 {
 	br_ec_public_key pk;
 	unsigned char buf[BR_EC_KBUF_PUB_MAX_SIZE];
 	struct dnskey *k;
 
-	if (algorithm == -1) {
-		switch (sk->type) {
-		case BR_KEYTYPE_EC:
-			switch (sk->ec.curve) {
-			case BR_EC_secp256r1: algorithm = ALGORITHM_ECDSAP256SHA256; break;
-			}
-			break;
-		}
-		if (algorithm == -1)
-			errx(1, "unsupported key type");
-	}
-	switch (algorithm) {
+	switch (sk->algorithm) {
 	case ALGORITHM_ECDSAP256SHA256:
-		if (sk->type != BR_KEYTYPE_EC || sk->ec.curve != BR_EC_secp256r1)
-			errx(1, "key is incompatible with algorithm %d", algorithm);
 		if (br_ec_compute_pub(br_ec_get_default(), &pk, buf, &sk->ec) != 65)
 			errx(1, "unexpected public key size");
 		if (!(k = malloc(sizeof(*k) + 64)))
@@ -110,10 +97,10 @@ dnskey_new(int algorithm, unsigned flags, const struct key *sk)
 		memcpy(k->data, buf + 1, 64);
 		break;
 	default:
-		errx(1, "unsupported algorithm %d", algorithm);
+		errx(1, "unsupported algorithm %s", algorithm_names[sk->algorithm]);
 	}
 	k->flags = flags;
-	k->algorithm = algorithm;
+	k->algorithm = sk->algorithm;
 	k->protocol = 3;
 	return k;
 }
@@ -146,16 +133,22 @@ dnskey_tag(const struct dnskey *k)
 }
 
 static struct key *
-dupkey_ec(const br_ec_private_key *ec)
+key_new_ec(const br_ec_private_key *ec, int algorithm)
 {
 	struct key *k;
 
 	if (!(k = malloc(sizeof(*k) + ec->xlen)))
 		err(1, "malloc");
-	k->type = BR_KEYTYPE_EC;
 	k->ec = *ec;
 	k->ec.x = k->data;
 	memcpy(k->data, ec->x, ec->xlen);
+	switch (k->ec.curve) {
+	case BR_EC_secp256r1: k->algorithm = ALGORITHM_ECDSAP256SHA256; break;
+	default:
+		errx(1, "unsupported curve %d", k->ec.curve);
+	}
+	if (algorithm != -1 && algorithm != k->algorithm)
+		errx(1, "key is incompatible with algorithm %s", algorithm_names[algorithm]);
 	return k;
 }
 
@@ -166,15 +159,20 @@ key_decode(void *ctx, const void *buf, size_t len)
 }
 
 struct key *
-key_load(const char *name)
+key_new_from_file(const char *name)
 {
 	br_pem_decoder_context pc;
 	br_skey_decoder_context kc;
 	char buf[BUFSIZ], *p;
 	size_t len = 0, n;
-	int done = 0;
+	int done = 0, algorithm = -1;
 	FILE *f;
 
+	if ((p = strchr(name, ':')) && !strchr(name, '/')) {
+		*p = '\0';
+		algorithm = algorithm_from_string(name);
+		name = p + 1;
+	}
 	f = fopen(name, "r");
 	if (!f)
 		err(1, "open %s", name);
@@ -205,7 +203,7 @@ key_load(const char *name)
 			case BR_KEYTYPE_RSA:
 				errx(1, "RSA key is not yet supported");
 			case BR_KEYTYPE_EC:
-				return dupkey_ec(br_skey_decoder_get_ec(&kc));
+				return key_new_ec(br_skey_decoder_get_ec(&kc), algorithm);
 			default:
 				errx(1, "failed to decode secret key: error %d",
 				     br_skey_decoder_last_error(&kc));

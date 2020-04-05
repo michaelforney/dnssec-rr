@@ -7,14 +7,14 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: dsfromkey [-a algorithm] [-d digest] [-t ttl] [-c class] domain keyfile\n");
+	fprintf(stderr, "usage: dsfromkey [-d digest] [-t ttl] [-c class] domain [algorithm:]keyfile\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int algorithm = -1, digest = DIGEST_SHA256, class = CLASS_IN, c;
+	int digest = DIGEST_SHA256, class = CLASS_IN, c;
 	unsigned long ttl = 86400;
 	br_hash_compat_context hc;
 	unsigned char hash[64];
@@ -22,9 +22,6 @@ main(int argc, char *argv[])
 	while ((c = getopt(argc, argv, "a:d:t:c:")) != -1) {
 		switch (c) {
 		char *end;
-		case 'a':
-			algorithm = algorithm_from_string(optarg);
-			break;
 		case 'd':
 			digest = digest_from_string(optarg);
 			break;
@@ -53,8 +50,8 @@ main(int argc, char *argv[])
 		errx(1, "unsupported digest %d", digest);
 	}
 
-	struct key *sk = key_load(argv[1]);
-	struct dnskey *pk = dnskey_new(algorithm, DNSKEY_ZONE | DNSKEY_SEP, sk);
+	struct key *sk = key_new_from_file(argv[1]);
+	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | DNSKEY_SEP, sk);
 
 	hc.vtable->init(&hc.vtable);
 	dname_hash(argv[0], &hc.vtable);
