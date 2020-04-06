@@ -8,7 +8,13 @@ int class_from_string(const char *);
 const char *class_to_string(int);
 
 enum {
+	ALGORITHM_DSA             = 3,
+	ALGORITHM_RSASHA1         = 5,
+	ALGORITHM_RSASHA256       = 8,
+	ALGORITHM_RSASHA512       = 10,
 	ALGORITHM_ECDSAP256SHA256 = 13,
+	ALGORITHM_ECDSAP384SHA384 = 14,
+	ALGORITHM_ED25519         = 15,
 };
 
 int algorithm_from_string(const char *);
@@ -45,6 +51,7 @@ struct dnskey {
 	unsigned flags;
 	int protocol;
 	int algorithm;
+	size_t data_length;
 	unsigned char data[];
 };
 

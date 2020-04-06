@@ -37,7 +37,11 @@ class_to_string(int class)
 }
 
 static const char *algorithm_names[] = {
+	[ALGORITHM_RSASHA1]         = "RSASHA1",
+	[ALGORITHM_RSASHA256]       = "RSASHA256",
+	[ALGORITHM_RSASHA512]       = "RSASHA512",
 	[ALGORITHM_ECDSAP256SHA256] = "ECDSAP256SHA256",
+	[ALGORITHM_ECDSAP384SHA384] = "ECDSAP384SHA384",
 };
 
 int
@@ -89,12 +93,40 @@ dnskey_new(unsigned flags, const struct key *sk)
 	struct dnskey *k;
 
 	switch (sk->algorithm) {
+	case ALGORITHM_RSASHA1:
+	case ALGORITHM_RSASHA256:
+	case ALGORITHM_RSASHA512:;
+		uint32_t e = br_rsa_compute_pubexp_get_default()(&sk->rsa);
+		if (!e)
+			errx(1, "failed to compute public exponent of RSA key");
+		printf("e is %u\n", e);
+		size_t nlen = br_rsa_compute_modulus_get_default()(NULL, &sk->rsa);
+		if (!nlen)
+			errx(1, "failed to compute public modulus of RSA key");
+		if (!(k = malloc(sizeof(*k) + 5 + nlen)))
+			err(1, "malloc");
+		/* leading zeros in exponent are prohibited */
+		for (k->data[0] = 4; !(e & 0xff000000); --k->data[0])
+			e <<= 8;
+		k->data_length = 1 + k->data[0] + nlen;
+		memcpy(k->data + 1, &(uint32_t){htonl(e)}, k->data[0]);
+		br_rsa_compute_modulus_get_default()(k->data + 1 + k->data[0], &sk->rsa);
+		break;
 	case ALGORITHM_ECDSAP256SHA256:
 		if (br_ec_compute_pub(br_ec_get_default(), &pk, buf, &sk->ec) != 65)
 			errx(1, "unexpected public key size");
 		if (!(k = malloc(sizeof(*k) + 64)))
 			err(1, "malloc");
+		k->data_length = 64;
 		memcpy(k->data, buf + 1, 64);
+		break;
+	case ALGORITHM_ECDSAP384SHA384:
+		if (br_ec_compute_pub(br_ec_get_default(), &pk, buf, &sk->ec) != 97)
+			errx(1, "unexpected public key size");
+		if (!(k = malloc(sizeof(*k) + 96)))
+			err(1, "malloc");
+		k->data_length = 96;
+		memcpy(k->data, buf + 1, 96);
 		break;
 	default:
 		errx(1, "unsupported algorithm %s", algorithm_names[sk->algorithm]);
@@ -111,7 +143,7 @@ dnskey_hash(const struct dnskey *k, const br_hash_class **hc)
 	(*hc)->update(hc, &(uint16_t){htons(k->flags)}, 2);
 	(*hc)->update(hc, &k->protocol, 1);
 	(*hc)->update(hc, &k->algorithm, 1);
-	(*hc)->update(hc, &k->data, 64);
+	(*hc)->update(hc, &k->data, k->data_length);
 }
 
 unsigned
@@ -119,16 +151,11 @@ dnskey_tag(const struct dnskey *k)
 {
 	unsigned long x;
 	const unsigned char *p;
-	size_t len;
+	size_t i;
 
 	x = k->flags + (k->protocol << 8) + k->algorithm;
-	switch (k->algorithm) {
-	case ALGORITHM_ECDSAP256SHA256: len = 64; break;
-	default:
-		errx(1, "unsupported algorithm %d", k->algorithm);
-	}
-	for (p = k->data; len != 0; p += 2, len -= 2)
-		x += (unsigned long)p[0] << 8 | p[1];
+	for (i = 0, p = k->data; i < k->data_length; ++p, ++i)
+		x += i & 1 ? *p : (unsigned long)*p << 8;
 	return (x + (x >> 16)) & 0xffff;
 }
 
@@ -144,11 +171,45 @@ key_new_ec(const br_ec_private_key *ec, int algorithm)
 	memcpy(k->data, ec->x, ec->xlen);
 	switch (k->ec.curve) {
 	case BR_EC_secp256r1: k->algorithm = ALGORITHM_ECDSAP256SHA256; break;
+	case BR_EC_secp384r1: k->algorithm = ALGORITHM_ECDSAP384SHA384; break;
 	default:
 		errx(1, "unsupported curve %d", k->ec.curve);
 	}
 	if (algorithm != -1 && algorithm != k->algorithm)
 		errx(1, "key is incompatible with algorithm %s", algorithm_names[algorithm]);
+	return k;
+}
+
+static struct key *
+key_new_rsa(const br_rsa_private_key *rsa, int algorithm)
+{
+	struct key *k;
+
+	if (!(k = malloc(sizeof(*k) + rsa->plen + rsa->qlen + rsa->dplen + rsa->dqlen + rsa->iqlen)))
+		err(1, "malloc");
+	k->rsa = *rsa;
+	k->rsa.p = k->data;
+	k->rsa.q = k->rsa.p + k->rsa.plen;
+	k->rsa.dp = k->rsa.q + k->rsa.qlen;
+	k->rsa.dq = k->rsa.dp + k->rsa.dplen;
+	k->rsa.iq = k->rsa.dq + k->rsa.dqlen;
+	memcpy(k->rsa.p, rsa->p, rsa->plen);
+	memcpy(k->rsa.q, rsa->q, rsa->qlen);
+	memcpy(k->rsa.dp, rsa->dp, rsa->dplen);
+	memcpy(k->rsa.dq, rsa->dq, rsa->dqlen);
+	memcpy(k->rsa.iq, rsa->iq, rsa->iqlen);
+	switch (algorithm) {
+	case ALGORITHM_RSASHA1:
+	case ALGORITHM_RSASHA256:
+	case ALGORITHM_RSASHA512:
+		k->algorithm = algorithm;
+		break;
+	case -1:
+		k->algorithm = ALGORITHM_RSASHA256;
+		break;
+	default:
+		errx(1, "key is incompatible with algorithm %s", algorithm_names[algorithm]);
+	}
 	return k;
 }
 
@@ -201,7 +262,7 @@ key_new_from_file(const char *name)
 		case BR_PEM_END_OBJ:
 			switch (br_skey_decoder_key_type(&kc)) {
 			case BR_KEYTYPE_RSA:
-				errx(1, "RSA key is not yet supported");
+				return key_new_rsa(br_skey_decoder_get_rsa(&kc), algorithm);
 			case BR_KEYTYPE_EC:
 				return key_new_ec(br_skey_decoder_get_ec(&kc), algorithm);
 			default:
