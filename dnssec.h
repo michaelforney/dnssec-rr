@@ -1,6 +1,22 @@
 #include <bearssl.h>
 
 enum {
+	TYPE_A      = 1,
+	TYPE_NS     = 2,
+	TYPE_CNAME  = 5,
+	TYPE_SOA    = 6,
+	TYPE_MX     = 15,
+	TYPE_AAAA   = 28,
+	TYPE_DS     = 43,
+	TYPE_RRSIG  = 46,
+	TYPE_NSEC   = 47,
+	TYPE_DNSKEY = 48,
+};
+
+int type_from_string(const char *);
+const char *type_to_string(int);
+
+enum {
 	CLASS_IN = 1,
 };
 

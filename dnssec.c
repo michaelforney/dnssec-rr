@@ -17,6 +17,34 @@ find_string(const char *str[], size_t len, const char *s)
 	return -1;
 }
 
+static const char *type_names[] = {
+	[TYPE_A]      = "A",
+	[TYPE_NS]     = "NS",
+	[TYPE_CNAME]  = "CNAME",
+	[TYPE_SOA]    = "SOA",
+	[TYPE_MX]     = "MX",
+	[TYPE_AAAA]   = "AAAA",
+	[TYPE_DS]     = "DS",
+	[TYPE_RRSIG]  = "RRSIG",
+	[TYPE_NSEC]   = "NSEC",
+	[TYPE_DNSKEY] = "DNSKEY",
+};
+
+int
+type_from_string(const char *s)
+{
+	size_t i = find_string(type_names, LEN(type_names), s);
+	if (i == -1)
+		errx(1, "unknown type '%s'", s);
+	return i;
+}
+
+const char *
+type_to_string(int class)
+{
+	return type_names[class];
+}
+
 static const char *class_names[] = {
 	[CLASS_IN] = "IN",
 };
