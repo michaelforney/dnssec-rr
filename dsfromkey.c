@@ -19,7 +19,7 @@ main(int argc, char *argv[])
 	br_hash_compat_context hc;
 	unsigned char hash[64];
 
-	while ((c = getopt(argc, argv, "a:d:t:c:")) != -1) {
+	while ((c = getopt(argc, argv, "d:t:c:")) != -1) {
 		switch (c) {
 		char *end;
 		case 'd':
@@ -39,7 +39,7 @@ main(int argc, char *argv[])
 	}
 	argc -= optind;
 	argv += optind;
-	if (argc < 2)
+	if (argc != 2)
 		usage();
 
 	switch (digest) {
