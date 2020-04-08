@@ -3,12 +3,12 @@
 CFLAGS += -Wall -Wpedantic
 LDLIBS = -lbearssl
 
-all: dsfromkey
+all: ds
 
-dsfromkey.o dnssec.o: dnssec.h
+ds.o dnssec.o: dnssec.h
 
-dsfromkey: dsfromkey.o dnssec.o
-	$(CC) $(LDFLAGS) -o $@ dsfromkey.o dnssec.o $(LDLIBS)
+ds: ds.o dnssec.o
+	$(CC) $(LDFLAGS) -o $@ ds.o dnssec.o $(LDLIBS)
 
 clean:
-	rm -f dsfromkey dsfromkey.o dnssec.o
+	rm -f ds ds.o dnssec.o
