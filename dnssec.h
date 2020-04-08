@@ -74,3 +74,6 @@ struct dnskey {
 struct dnskey *dnskey_new(unsigned, const struct key *);
 void dnskey_hash(const struct dnskey *, const br_hash_class **);
 unsigned dnskey_tag(const struct dnskey *);
+
+/* base64 */
+void base64_encode(char *, const unsigned char *, size_t);
