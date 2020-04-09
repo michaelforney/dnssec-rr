@@ -40,9 +40,9 @@ type_from_string(const char *s)
 }
 
 const char *
-type_to_string(int class)
+type_to_string(int type)
 {
-	return type_names[class];
+	return type_names[type];
 }
 
 static const char *class_names[] = {
