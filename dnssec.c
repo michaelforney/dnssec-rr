@@ -113,6 +113,25 @@ dname_hash(const char *name, const br_hash_class **hc)
 	(*hc)->update(hc, &(uint8_t){0}, 1);
 }
 
+unsigned char *
+dname_encode(unsigned char *dst, const char *src)
+{
+	const char *p;
+
+	while ((p = strchr(src, '.'))) {
+		if (p - src > 63)
+			errx(1, "domain name label is too long");
+		*dst++ = p - src;
+		memcpy(dst, src, p - src);
+		dst += p - src;
+		src = p + 1;
+	}
+	if (*src)
+		errx(1, "domain name does not end with root label");
+	*dst++ = 0;
+	return dst;
+}
+
 struct dnskey *
 dnskey_new(unsigned flags, const struct key *sk)
 {

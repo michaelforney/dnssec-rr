@@ -7,7 +7,8 @@ all: ds dnskey
 
 COMMON_OBJ=\
 	base64.o\
-	dnssec.o
+	dnssec.o\
+	zone.o
 
 libcommon.a: $(COMMON_OBJ)
 	$(AR) -rc $@ $(COMMON_OBJ)

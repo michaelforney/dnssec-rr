@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <bearssl.h>
 
 enum {
@@ -55,9 +56,11 @@ struct key {
 
 struct key *key_new_from_file(const char *);
 
-/* DNSSEC record types */
+/* domain names */
 void dname_hash(const char *, const br_hash_class **);
+unsigned char *dname_encode(unsigned char *, const char *);
 
+/* DNSSEC record types */
 enum {
 	DNSKEY_SEP  = 1 << 0,
 	DNSKEY_ZONE = 1 << 8,
@@ -78,3 +81,23 @@ unsigned dnskey_tag(const struct dnskey *);
 /* base64 */
 void base64_encode(char *, const unsigned char *, size_t);
 size_t base64_decode(unsigned char *, const char *);
+
+/* zone */
+struct rr {
+	char *name;
+	int type;
+	int class;
+	unsigned long ttl;
+	size_t rdata_length;
+	unsigned char rdata[];
+};
+
+struct zone {
+	struct {
+		unsigned long minimum_ttl;
+	} soa;
+	struct rr **rr;
+	size_t rr_length;
+};
+
+struct zone *zone_new_from_file(const char *, FILE *);
