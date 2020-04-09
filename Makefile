@@ -5,13 +5,20 @@ LDLIBS = -lbearssl
 
 all: ds dnskey
 
-ds.o dnskey.o dnssec.o: dnssec.h
+COMMON_OBJ=\
+	base64.o\
+	dnssec.o
 
-ds: ds.o dnssec.o
-	$(CC) $(LDFLAGS) -o $@ ds.o dnssec.o $(LDLIBS)
+libcommon.a: $(COMMON_OBJ)
+	$(AR) -rc $@ $(COMMON_OBJ)
 
-dnskey: dnskey.o dnssec.o
-	$(CC) $(LDFLAGS) -o $@ dnskey.o dnssec.o $(LDLIBS)
+ds: ds.o libcommon.a
+	$(CC) $(LDFLAGS) -o $@ ds.o libcommon.a $(LDLIBS)
+
+dnskey: dnskey.o libcommon.a
+	$(CC) $(LDFLAGS) -o $@ dnskey.o libcommon.a $(LDLIBS)
+
+ds.o dnskey.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
 
 clean:
-	rm -f ds ds.o dnskey dnskey.o dnssec.o
+	rm -f ds ds.o dnskey dnskey.o libcommon.a $(COMMON_OBJ)

@@ -303,24 +303,3 @@ key_new_from_file(const char *name)
 		}
 	}
 }
-
-void
-base64_encode(char *dst, const unsigned char *src, size_t len)
-{
-	static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	unsigned long n;
-	size_t i;
-
-	for (i = 0; i < len; i += 3) {
-		n = src[i] << 16;
-		if (i + 1 < len)
-			n |= src[i + 1] << 8;
-		if (i + 2 < len)
-			n |= src[i + 2];
-		*dst++ = b64[n >> 18];
-		*dst++ = b64[n >> 12 & 0x3f];
-		*dst++ = i + 1 < len ? b64[n >> 6 & 0x3f] : '=';
-		*dst++ = i + 2 < len ? b64[n & 0x3f] : '=';
-	}
-	*dst++ = '\0';
-}
