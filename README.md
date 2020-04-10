@@ -32,14 +32,4 @@ $ dnskey example.com. zsk.pem
 example.com.    86400   IN      DNSKEY  256 3 13 FH+S2VOGBc7NAZU/1yL271VjUDzYEh3Ehv4Ii2GoFVTFwcHA/o3kdZS5N+l2CVK4N+6bqsiHwcqtmydSMVcziQ==
 ```
 
-## signzone
-
-This tool signs records read from standard input.
-
-```
-$ signzone zsk.pem ksk.pem < example.com.zone
-```
-
-Not yet implemented.
-
 [BearSSL]: https://bearssl.org
