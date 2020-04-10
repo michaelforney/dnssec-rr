@@ -13,6 +13,40 @@ $ brssl skey -gen ec:secp256r1 -rawpem ksk.pem
 
 You can also use `-gen rsa[:size]` to generate RSA keys.
 
+## Complete example
+
+Let's say we have a complete zone file `example.com.zone`:
+
+```
+example.com.		86400	IN	SOA	ns1.example.com. root.example.com. 2020040900 7200 900 1209600 1200
+example.com.		86400	IN	NS	ns1.example.com.
+example.com.		86400	IN	A	1.2.3.4
+ns1.example.com.	86400	IN	A	1.2.3.4
+```
+
+You can sign it with two keys, `ksk-example.com.pem` and
+`zsk-example.com.pem` with the following commands:
+
+```
+$ cp example.com.zone example.com.zone.signed
+$ dnskey -k example.com. ksk-example.com.pem >> example.com.zone.signed
+$ dnskey example.com. zsk-example.com.pem >> example.com.zone.signed
+$ nsec < example.com.zone.signed >> example.com.zone.signed
+$ rrsig -k ksk-example.com.pem < example.com.zone.signed >> example.com.zone.signed
+$ rrsig -z zsk-example.com.pem < example.com.zone.signed >> example.com.zone.signed
+```
+
+Alternatively, you can sign it with a single key, `csk-example.com.pem`:
+
+```
+$ cp example.com.zone example.com.zone.signed
+$ dnskey -k example.com. csk-example.com.pem >> example.com.zone.signed
+$ nsec < example.com.zone.signed >> example.com.zone.signed
+$ rrsig csk-example.com.pem < example.com.zone.signed >> example.com.zone.signed
+```
+
+This may be wrapped up into a shell script at some point.
+
 ## ds
 
 This tool generates a `DS` record for the parent zone (usually used
@@ -36,7 +70,8 @@ example.com.    86400   IN      DNSKEY  256 3 13 FH+S2VOGBc7NAZU/1yL271VjUDzYEh3
 
 ## nsec
 
-This tool generates `NSEC` records for a zone, linking the domain names together.
+This tool generates `NSEC` records for a zone, linking the domain
+names together.
 
 ```
 $ { cat <<EOF; dnskey -k example.com. ksk.pem; dnskey example.com. zsk.pem; } | nsec
