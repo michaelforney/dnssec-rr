@@ -8,6 +8,7 @@ all: ds dnskey nsec rrsig
 COMMON_OBJ=\
 	base64.o\
 	dnssec.o\
+	key.o\
 	zone.o
 
 libcommon.a: $(COMMON_OBJ)

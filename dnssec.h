@@ -35,6 +35,7 @@ enum {
 };
 
 int algorithm_from_string(const char *);
+const char *algorithm_to_string(int);
 
 enum {
 	DIGEST_SHA1   = 1,
