@@ -32,4 +32,19 @@ $ dnskey example.com. zsk.pem
 example.com.    86400   IN      DNSKEY  256 3 13 FH+S2VOGBc7NAZU/1yL271VjUDzYEh3Ehv4Ii2GoFVTFwcHA/o3kdZS5N+l2CVK4N+6bqsiHwcqtmydSMVcziQ==
 ```
 
+## nsec
+
+This tool generates `NSEC` records for a zone, linking the domain names together.
+
+```
+$ { cat <<EOF; dnskey -k example.com. ksk.pem; dnskey example.com. zsk.pem; } | nsec
+example.com.		86400	IN	SOA	ns1.example.com. root.example.com. 2020040900 7200 900 1209600 1200
+abc.example.com.	86400	IN	A	1.2.3.4
+def.example.com.	86400	IN	A	5.6.7.8
+EOF
+example.com.    1200    IN      NSEC    abc.example.com. SOA RRSIG NSEC DNSKEY
+abc.example.com.        1200    IN      NSEC    def.example.com. A RRSIG NSEC
+def.example.com.        1200    IN      NSEC    example.com. A RRSIG NSEC
+```
+
 [BearSSL]: https://bearssl.org

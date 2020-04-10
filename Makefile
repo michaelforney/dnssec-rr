@@ -3,7 +3,7 @@
 CFLAGS += -Wall -Wpedantic
 LDLIBS = -lbearssl
 
-all: ds dnskey
+all: ds dnskey nsec
 
 COMMON_OBJ=\
 	base64.o\
@@ -19,7 +19,10 @@ ds: ds.o libcommon.a
 dnskey: dnskey.o libcommon.a
 	$(CC) $(LDFLAGS) -o $@ dnskey.o libcommon.a $(LDLIBS)
 
+nsec: nsec.o libcommon.a
+	$(CC) $(LDFLAGS) -o $@ nsec.o libcommon.a $(LDLIBS)
+
 ds.o dnskey.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
 
 clean:
-	rm -f ds ds.o dnskey dnskey.o libcommon.a $(COMMON_OBJ)
+	rm -f ds ds.o dnskey dnskey.o nsec nsec.o libcommon.a $(COMMON_OBJ)
