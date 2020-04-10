@@ -242,6 +242,33 @@ zone_new_from_file(const char *path, FILE *file)
 			}
 			rr->rdata_length -= 32 - p[1];
 			break;
+		case TYPE_TLSA:
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid TLSA: expected usage");
+			int usage = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SOA: invalid refresh interval");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid TLSA: expected selector");
+			int selector = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SOA: invalid selector");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid TLSA: expected match type");
+			int match = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SOA: invalid match type");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid TLSA: expected certificate association data");
+			rr = rr_new(name, type, class, ttl, 3 + strlen(tok) / 2);
+			rr->rdata[0] = usage;
+			rr->rdata[1] = selector;
+			rr->rdata[2] = match;
+			rr->rdata_length = 3 + base16_decode(rr->rdata + 3, tok);
+			break;
 		default:
 			errx(1, "unsupported record type %s", type_to_string(type));
 		}

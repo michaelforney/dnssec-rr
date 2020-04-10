@@ -28,6 +28,7 @@ static const char *type_names[] = {
 	[TYPE_RRSIG]  = "RRSIG",
 	[TYPE_NSEC]   = "NSEC",
 	[TYPE_DNSKEY] = "DNSKEY",
+	[TYPE_TLSA]   = "TLSA",
 };
 
 int

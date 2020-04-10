@@ -12,6 +12,7 @@ enum {
 	TYPE_RRSIG  = 46,
 	TYPE_NSEC   = 47,
 	TYPE_DNSKEY = 48,
+	TYPE_TLSA   = 52,
 };
 
 int type_from_string(const char *);
@@ -78,6 +79,9 @@ struct dnskey {
 
 struct dnskey *dnskey_new(unsigned, const struct key *);
 unsigned dnskey_tag(const struct dnskey *);
+
+/* base16 (hexadecimal) */
+size_t base16_decode(unsigned char *, const char *);
 
 /* base64 */
 void base64_encode(char *, const unsigned char *, size_t);

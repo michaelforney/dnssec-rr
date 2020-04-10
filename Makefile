@@ -6,6 +6,7 @@ LDLIBS = -lbearssl
 all: ds dnskey nsec rrsig
 
 COMMON_OBJ=\
+	base16.o\
 	base64.o\
 	dnssec.o\
 	key.o\
