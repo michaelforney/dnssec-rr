@@ -143,6 +143,8 @@ main(int argc, char *argv[])
 				errx(1, "failed to sign RRset");
 			sig_len = (sk->rsa.n_bitlen + 7) / 8;
 			break;
+		default:
+			errx(1, "unsupported algorithm %d", sk->algorithm);
 		}
 		char sig_b64[(sizeof(sig) * 4 + 2) / 3 + 1];
 		base64_encode(sig_b64, sig, sig_len);
