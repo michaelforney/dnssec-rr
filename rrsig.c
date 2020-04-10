@@ -60,7 +60,7 @@ main(int argc, char *argv[])
 	const br_ec_impl *ec = br_ec_get_default();
 	br_ecdsa_sign ecdsa_sign = br_ecdsa_sign_raw_get_default();
 	br_rsa_pkcs1_sign rsa_sign = br_rsa_pkcs1_sign_get_default();
-	const unsigned char *hash_oid;
+	const unsigned char *hash_oid = NULL;
 	switch (sk->algorithm) {
 	case ALGORITHM_ECDSAP256SHA256:
 		hc.vtable = &br_sha256_vtable;
