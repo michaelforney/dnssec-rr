@@ -71,6 +71,5 @@ def.example.com.        86400   IN      RRSIG   A 13 3 86400 20200510061143 2020
 
 - Only a few common record types are supported.
 - The zone parser is very limited; it only accepts one record per line, with no parentheses and no comments.
-- RSA keys do not work yet.
 
 [BearSSL]: https://bearssl.org
