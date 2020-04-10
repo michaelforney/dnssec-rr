@@ -188,9 +188,9 @@ void
 dnskey_hash(const struct dnskey *k, const br_hash_class **hc)
 {
 	(*hc)->update(hc, &(uint16_t){htons(k->flags)}, 2);
-	(*hc)->update(hc, &k->protocol, 1);
-	(*hc)->update(hc, &k->algorithm, 1);
-	(*hc)->update(hc, &k->data, k->data_length);
+	(*hc)->update(hc, &(uint8_t){k->protocol}, 1);
+	(*hc)->update(hc, &(uint8_t){k->algorithm}, 1);
+	(*hc)->update(hc, k->data, k->data_length);
 }
 
 unsigned
