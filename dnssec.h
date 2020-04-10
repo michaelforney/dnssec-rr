@@ -59,6 +59,7 @@ struct key *key_new_from_file(const char *);
 /* domain names */
 void dname_hash(const char *, const br_hash_class **);
 unsigned char *dname_encode(unsigned char *, const char *);
+int dname_labels(const char *);
 
 /* DNSSEC record types */
 enum {

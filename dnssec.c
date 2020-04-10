@@ -132,6 +132,20 @@ dname_encode(unsigned char *dst, const char *src)
 	return dst;
 }
 
+int
+dname_labels(const char *name)
+{
+	int labels;
+
+	if (strcmp(name, ".") == 0)
+		return 0;
+	for (labels = 0; *name; ++name, ++labels) {
+		name = strchr(name, '.');
+		assert(name);
+	}
+	return labels;
+}
+
 struct dnskey *
 dnskey_new(unsigned flags, const struct key *sk)
 {
