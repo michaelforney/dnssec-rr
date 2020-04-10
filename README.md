@@ -11,6 +11,8 @@ $ brssl skey -gen ec:secp256r1 -rawpem zsk.pem
 $ brssl skey -gen ec:secp256r1 -rawpem ksk.pem
 ```
 
+You can also use `-gen rsa[:size]` to generate RSA keys.
+
 ## ds
 
 This tool generates a `DS` record for the parent zone (usually used
