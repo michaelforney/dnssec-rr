@@ -17,8 +17,6 @@ main(int argc, char *argv[])
 {
 	int digest = DIGEST_SHA256, class = CLASS_IN, c;
 	unsigned long ttl = 86400;
-	br_hash_compat_context hc;
-	unsigned char hash[64];
 
 	while ((c = getopt(argc, argv, "d:t:c:")) != -1) {
 		switch (c) {
@@ -43,6 +41,7 @@ main(int argc, char *argv[])
 	if (argc != 2)
 		usage();
 
+	br_hash_compat_context hc;
 	switch (digest) {
 	case DIGEST_SHA1:   hc.vtable = &br_sha1_vtable;   break;
 	case DIGEST_SHA256: hc.vtable = &br_sha256_vtable; break;
@@ -60,11 +59,13 @@ main(int argc, char *argv[])
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->protocol}, 1);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->algorithm}, 1);
 	hc.vtable->update(&hc.vtable, pk->data, pk->data_length);
+	unsigned char hash[64];
+	size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;
 	hc.vtable->out(&hc.vtable, hash);
 
 	printf("%s\t%lu\t%s\tDS\t%u %d %d ",
 	       argv[0], ttl, class_to_string(class), dnskey_tag(pk), pk->algorithm, digest);
-	for (size_t i = 0; i < (hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK); ++i)
+	for (size_t i = 0; i < hash_len; ++i)
 		printf("%02x", hash[i]);
 	putchar('\n');
 
