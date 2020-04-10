@@ -160,7 +160,6 @@ dnskey_new(unsigned flags, const struct key *sk)
 		uint32_t e = br_rsa_compute_pubexp_get_default()(&sk->rsa);
 		if (!e)
 			errx(1, "failed to compute public exponent of RSA key");
-		printf("e is %u\n", e);
 		size_t nlen = br_rsa_compute_modulus_get_default()(NULL, &sk->rsa);
 		if (!nlen)
 			errx(1, "failed to compute public modulus of RSA key");
