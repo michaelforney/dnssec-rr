@@ -8,6 +8,7 @@ enum {
 	TYPE_SOA    = 6,
 	TYPE_MX     = 15,
 	TYPE_AAAA   = 28,
+	TYPE_SRV    = 33,
 	TYPE_DS     = 43,
 	TYPE_RRSIG  = 46,
 	TYPE_NSEC   = 47,

@@ -122,6 +122,7 @@ zone_new_from_file(const char *path, FILE *file)
 		switch (type) {
 		char *ns, *owner;
 		unsigned char *p;
+		unsigned priority;
 		case TYPE_A:
 			rr = rr_new(name, type, class, ttl, 4);
 			if (!(tok = strtok(NULL, " \t")))
@@ -183,7 +184,7 @@ zone_new_from_file(const char *path, FILE *file)
 		case TYPE_MX:
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid MX: expected priority");
-			unsigned priority = strtoul(tok, &tok, 10);
+			priority = strtoul(tok, &tok, 10);
 			if (*tok)
 				errx(1, "invalid MX: invalid priority");
 			if (!(tok = strtok(NULL, " \t")))
@@ -198,6 +199,33 @@ zone_new_from_file(const char *path, FILE *file)
 				errx(1, "invalid AAAA: expected IP address");
 			if (inet_pton(AF_INET6, tok, rr->rdata) != 1)
 				err(1, "invalid AAAA: inet_pton");
+			break;
+		case TYPE_SRV:
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid SRV: expected priority");
+			priority = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SRV: invalid priority");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid SRV: expected weight");
+			unsigned weight = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SRV: invalid weight");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid SRV: expected port");
+			unsigned port = strtoul(tok, &tok, 10);
+			if (*tok)
+				errx(1, "invalid SRV: invalid port");
+
+			if (!(tok = strtok(NULL, " \t")))
+				errx(1, "invalid SRV: expected domain name");
+			rr = rr_new(name, type, class, ttl, 6 + strlen(tok) + 1);
+			memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
+			memcpy(rr->rdata + 2, &(uint16_t){htons(weight)}, 2);
+			memcpy(rr->rdata + 4, &(uint16_t){htons(port)}, 2);
+			dname_encode(rr->rdata + 6, tok);
 			break;
 		case TYPE_DNSKEY:
 			if (!(tok = strtok(NULL, " \t")))
