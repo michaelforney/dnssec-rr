@@ -46,9 +46,10 @@ rr_compare(const void *p1, const void *p2)
 		return rr1->type == TYPE_SOA ? -1 : rr2->type == TYPE_SOA ? 1 : rr1->type - rr2->type;
 	if (rr1->class != rr2->class)
 		return rr1->class - rr2->class;
-	if (rr1->rdata_length != rr2->rdata_length)
-		return rr1->rdata_length - rr2->rdata_length;
-	return memcmp(rr1->rdata, rr2->rdata, rr1->rdata_length);
+	size_t len = rr1->rdata_length < rr2->rdata_length ? rr1->rdata_length : rr2->rdata_length;
+	if ((r = memcmp(rr1->rdata, rr2->rdata, len)) != 0 || rr1->rdata_length == rr2->rdata_length)
+		return r;
+	return len == rr1->rdata_length ? -1 : 1;
 }
 
 static void
