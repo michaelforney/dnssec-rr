@@ -45,8 +45,10 @@ main(int argc, char *argv[])
 	if (argc != 1)
 		usage();
 
-	if (!kflag && !zflag)
+	if (!kflag && !zflag) {
+		kflag = 1;
 		zflag = 1;
+	}
 	if (!start_time && (start_time = time(NULL)) == -1)
 		err(1, "time");
 	if (!end_time)
