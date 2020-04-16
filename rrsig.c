@@ -148,7 +148,7 @@ main(int argc, char *argv[])
 		default:
 			errx(1, "unsupported algorithm %d", sk->algorithm);
 		}
-		char sig_b64[(sizeof(sig) * 4 + 2) / 3 + 1];
+		char sig_b64[(sizeof(sig) + 2) / 3 * 4 + 1];
 		base64_encode(sig_b64, sig, sig_len);
 		puts(sig_b64);
 	}
