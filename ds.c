@@ -53,8 +53,13 @@ main(int argc, char *argv[])
 	struct key *sk = key_new_from_file(argv[1]);
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | DNSKEY_SEP, sk);
 
+	unsigned char dname[DNAME_MAX];
+	size_t dname_len = dname_parse(argv[0], dname, NULL, 0);
+	if (dname_len == 0)
+		errx(1, "invalid domain name '%s'", argv[0]);
+
 	hc.vtable->init(&hc.vtable);
-	dname_hash(argv[0], &hc.vtable);
+	hc.vtable->update(&hc.vtable, dname, dname_len);
 	hc.vtable->update(&hc.vtable, &(uint16_t){htons(pk->flags)}, 2);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->protocol}, 1);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->algorithm}, 1);

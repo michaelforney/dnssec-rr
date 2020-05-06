@@ -4,35 +4,6 @@
 #include <err.h>
 #include "dnssec.h"
 
-/* canonical ordering of domain names */
-static int
-dname_compare(const char *n1, const char *n2)
-{
-	const char *p1, *p2, *e1, *e2;
-	size_t l;
-	int r;
-
-	p1 = n1 + strlen(n1) - 1;
-	p2 = n2 + strlen(n2) - 1;
-	while (p1 > n1 && p2 > n2) {
-		e1 = p1--;
-		while (p1 > n1 && p1[-1] != '.')
-			--p1;
-		e2 = p2--;
-		while (p2 > n2 && p2[-1] != '.')
-			--p2;
-		l = e1 - p1 <= e2 - p2 ? e1 - p1 : e2 - p2;
-		r = memcmp(p1, p2, l);
-		if (r != 0)
-			return r;
-		if (l < e1 - p1)
-			return 1;
-		if (l < e2 - p2)
-			return -1;
-	}
-	return (p1 > n1) - (p2 > n2);
-}
-
 static int
 rr_compare(const void *p1, const void *p2)
 {
@@ -66,13 +37,14 @@ zone_add(struct zone *z, struct rr *rr)
 }
 
 static struct rr *
-rr_new(char *name, int type, int class, unsigned long ttl, size_t rdata_len)
+rr_new(unsigned char *name, size_t name_len, int type, int class, unsigned long ttl, size_t rdata_len)
 {
 	struct rr *rr;
 
 	if (!(rr = malloc(sizeof(*rr) + rdata_len)))
 		err(1, "malloc");
-	rr->name = name;
+	memcpy(rr->name, name, name_len);
+	rr->name_len = name_len;
 	rr->type = type;
 	rr->class = class;
 	rr->ttl = ttl;
@@ -103,9 +75,10 @@ zone_new_from_file(const char *path, FILE *file)
 		char *tok;
 		if (!(tok = strtok(buf, " \t")))
 			continue;
-		char *name = strdup(tok);
-		if (!name)
-			err(1, "strdup");
+		unsigned char name[DNAME_MAX];
+		size_t name_len = dname_parse(tok, name, NULL, 0);
+		if (name_len == 0)
+			errx(1, "invalid RR: invalid name");
 		if (!(tok = strtok(NULL, " \t")))
 			errx(1, "invalid RR: expected TTL");
 		unsigned long ttl = strtoul(tok, &tok, 10);
@@ -121,31 +94,47 @@ zone_new_from_file(const char *path, FILE *file)
 		if ((type == TYPE_SOA) != (z->rr_len == 0))
 			errx(1, "exactly one SOA record must be present at start of zone");
 		switch (type) {
-		char *ns, *owner;
 		unsigned char *p;
-		unsigned priority;
 		case TYPE_A:
-			rr = rr_new(name, type, class, ttl, 4);
+			rr = rr_new(name, name_len, type, class, ttl, 4);
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid A: expected IP address");
 			if (inet_pton(AF_INET, tok, rr->rdata) != 1)
 				err(1, "invalid A: inet_pton");
 			break;
 		case TYPE_NS:
-		case TYPE_CNAME:
+		case TYPE_CNAME: {
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid %s: expected name server", type_to_string(type));
-			rr = rr_new(name, type, class, ttl, strlen(tok) + 1);
-			dname_encode(rr->rdata, tok);
+			unsigned char dname[DNAME_MAX];
+			size_t len = dname_parse(tok, dname, NULL, 0);
+			if (len == 0)
+				errx(1, "invalid %s: invalid name server", type_to_string(type));
+			rr = rr_new(name, name_len, type, class, ttl, len);
+			memcpy(rr->rdata, dname, len);
 			break;
-		case TYPE_SOA:
-			if (!(ns = strtok(NULL, " \t")))
+		}
+		case TYPE_SOA: {
+			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid SOA: expected name server");
-			if (!(owner = strtok(NULL, " \t")))
+			unsigned char mname[DNAME_MAX];
+			size_t mname_len = dname_parse(tok, mname, NULL, 0);
+			if (mname_len == 0)
+				errx(1, "invalid SOA: invalid name server");
+
+			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid SOA: expected owner mailbox");
-			rr = rr_new(name, TYPE_SOA, class, ttl, strlen(ns) + 1 + strlen(owner) + 1 + 20);
-			p = dname_encode(rr->rdata, ns);
-			p = dname_encode(p, owner);
+			unsigned char rname[DNAME_MAX];
+			size_t rname_len = dname_parse(tok, rname, NULL, 0);
+			if (rname_len == 0)
+				errx(1, "invalid SOA: invalid owner mailbax");
+
+			rr = rr_new(name, name_len, TYPE_SOA, class, ttl, mname_len + rname_len + 20);
+			p = rr->rdata;
+			memcpy(p, mname, mname_len);
+			p += mname_len;
+			memcpy(p, rname, rname_len);
+			p += rname_len;
 
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid SOA: expected serial number");
@@ -182,29 +171,35 @@ zone_new_from_file(const char *path, FILE *file)
 				errx(1, "invalid SOA: invalid minimum TTL");
 			memcpy(p, &(uint32_t){htonl(z->soa.minimum_ttl)}, 4);
 			break;
-		case TYPE_MX:
+		}
+		case TYPE_MX: {
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid MX: expected priority");
-			priority = strtoul(tok, &tok, 10);
+			unsigned priority = strtoul(tok, &tok, 10);
 			if (*tok)
 				errx(1, "invalid MX: invalid priority");
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid MX: expected domain name");
-			rr = rr_new(name, type, class, ttl, 2 + strlen(tok) + 1);
+			unsigned char dname[DNAME_MAX];
+			size_t dname_len = dname_parse(tok, dname, NULL, 0);
+			if (dname_len == 0)
+				errx(1, "invalid MX: invalid domain name");
+			rr = rr_new(name, name_len, type, class, ttl, 2 + dname_len);
 			memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
-			dname_encode(rr->rdata + 2, tok);
+			memcpy(rr->rdata + 2, dname, dname_len);
 			break;
+		}
 		case TYPE_AAAA:
-			rr = rr_new(name, type, class, ttl, 16);
+			rr = rr_new(name, name_len, type, class, ttl, 16);
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid AAAA: expected IP address");
 			if (inet_pton(AF_INET6, tok, rr->rdata) != 1)
 				err(1, "invalid AAAA: inet_pton");
 			break;
-		case TYPE_SRV:
+		case TYPE_SRV: {
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid SRV: expected priority");
-			priority = strtoul(tok, &tok, 10);
+			unsigned priority = strtoul(tok, &tok, 10);
 			if (*tok)
 				errx(1, "invalid SRV: invalid priority");
 
@@ -222,12 +217,17 @@ zone_new_from_file(const char *path, FILE *file)
 
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid SRV: expected domain name");
-			rr = rr_new(name, type, class, ttl, 6 + strlen(tok) + 1);
+			unsigned char dname[DNAME_MAX];
+			size_t dname_len = dname_parse(tok, dname, NULL, 0);
+			if (dname_len == 0)
+				errx(1, "invalid SRV: invalid domain name");
+			rr = rr_new(name, name_len, type, class, ttl, 6 + dname_len);
 			memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
 			memcpy(rr->rdata + 2, &(uint16_t){htons(weight)}, 2);
 			memcpy(rr->rdata + 4, &(uint16_t){htons(port)}, 2);
-			dname_encode(rr->rdata + 6, tok);
+			memcpy(rr->rdata + 6, dname, dname_len);
 			break;
+		}
 		case TYPE_DNSKEY:
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid DNSKEY: expected flags");
@@ -249,17 +249,23 @@ zone_new_from_file(const char *path, FILE *file)
 
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid DNSKEY: expected public key");
-			rr = rr_new(name, type, class, ttl, 4 + strlen(tok) * 3 / 4);
+			rr = rr_new(name, name_len, type, class, ttl, 4 + strlen(tok) * 3 / 4);
 			memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
 			rr->rdata[2] = protocol;
 			rr->rdata[3] = algorithm;
 			rr->rdata_len = 4 + base64_decode(rr->rdata + 4, tok);
 			break;
-		case TYPE_NSEC:
+		case TYPE_NSEC: {
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid NSEC: expected next domain name");
-			rr = rr_new(name, type, class, ttl, strlen(tok) + 1 + 34);
-			p = dname_encode(rr->rdata, tok);
+			unsigned char dname[DNAME_MAX];
+			size_t dname_len = dname_parse(tok, dname, NULL, 0);
+			if (dname_len == 0)
+				errx(1, "invalid NSEC: invalid next domain name");
+			rr = rr_new(name, name_len, type, class, ttl, dname_len + 34);
+			p = rr->rdata;
+			memcpy(p, dname, dname_len);
+			p += dname_len;
 			p[0] = 0;
 			p[1] = 0;
 			while ((tok = strtok(NULL, " \t"))) {
@@ -271,6 +277,7 @@ zone_new_from_file(const char *path, FILE *file)
 			}
 			rr->rdata_len -= 32 - p[1];
 			break;
+		}
 		case TYPE_TLSA:
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid TLSA: expected usage");
@@ -292,7 +299,7 @@ zone_new_from_file(const char *path, FILE *file)
 
 			if (!(tok = strtok(NULL, " \t")))
 				errx(1, "invalid TLSA: expected certificate association data");
-			rr = rr_new(name, type, class, ttl, 3 + strlen(tok) / 2);
+			rr = rr_new(name, name_len, type, class, ttl, 3 + strlen(tok) / 2);
 			rr->rdata[0] = usage;
 			rr->rdata[1] = selector;
 			rr->rdata[2] = match;

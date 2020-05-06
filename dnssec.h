@@ -60,9 +60,15 @@ struct key {
 struct key *key_new_from_file(const char *);
 
 /* domain names */
-void dname_hash(const char *, const br_hash_class **);
-unsigned char *dname_encode(unsigned char *, const char *);
-int dname_labels(const char *);
+enum {
+	LABEL_MAX = 63,
+	DNAME_MAX = 255,
+};
+
+size_t dname_parse(const char *, unsigned char[static DNAME_MAX], const unsigned char *, size_t);
+int dname_compare(const unsigned char *, const unsigned char *);
+int dname_print(const unsigned char *);
+int dname_labels(const unsigned char *);
 
 /* DNSSEC record types */
 enum {
@@ -90,7 +96,8 @@ size_t base64_decode(unsigned char *, const char *);
 
 /* zone */
 struct rr {
-	char *name;
+	unsigned char name[DNAME_MAX];
+	size_t name_len;
 	int type;
 	int class;
 	unsigned long ttl;

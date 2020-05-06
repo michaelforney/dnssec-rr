@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <assert.h>
+#include <ctype.h>
 #include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,53 +105,128 @@ digest_from_string(const char *s)
 	return i;
 }
 
-void
-dname_hash(const char *name, const br_hash_class **hc)
+size_t
+dname_parse(const char *s, unsigned char dn[static DNAME_MAX], const unsigned char *origin, size_t origin_len)
 {
-	const char *p;
+	size_t len = 0, label_len;
+	int rel;
 
-	while ((p = strchr(name, '.'))) {
-		if (p - name > 63)
-			errx(1, "domain name label is too long");
-		(*hc)->update(hc, &(uint8_t){p - name}, 1);
-		(*hc)->update(hc, name, p - name);
-		name = p + 1;
+	if (s[0] == '@') {
+		++s;
+		rel = 1;
+		goto out;
 	}
-	if (*name)
-		errx(1, "domain name does not end with root label");
-	(*hc)->update(hc, &(uint8_t){0}, 1);
-}
-
-unsigned char *
-dname_encode(unsigned char *dst, const char *src)
-{
-	const char *p;
-
-	while ((p = strchr(src, '.'))) {
-		if (p - src > 63)
-			errx(1, "domain name label is too long");
-		*dst++ = p - src;
-		memcpy(dst, src, p - src);
-		dst += p - src;
-		src = p + 1;
+	for (;;) {
+		label_len = 0;
+		switch (s[0]) {
+		case '.':
+			if (len != 0)
+				return 0;
+			++s;
+			rel = 0;
+			goto out;
+		case ' ':
+		case '\t':
+		case '\0':
+			if (len == 0)
+				return 0;
+			rel = 0;
+			goto out;
+		case '"':
+			while (*++s != '"') {
+				if (*s == '\\')
+					++s;
+				if (len + label_len == DNAME_MAX - 2 || label_len == LABEL_MAX)
+					return 0;
+				dn[len + 1 + label_len++] = *s;
+			}
+			++s;
+			break;
+		default:
+			while (*s && *s != ' ' && *s != '\t' && *s != '.') {
+				int c;
+				if (*s == '\\' && isdigit(*++s)) {
+					if (!isdigit(s[1]) || !isdigit(s[2]))
+						return 0;
+					c = (s[0] - '0') * 100 + (s[1] - '0') * 10 + (s[2] - '0');
+					s += 3;
+				} else if (*s) {
+					c = *s++;
+				} else {
+					return 0;
+				}
+				if (len + label_len == DNAME_MAX - 2 || label_len == LABEL_MAX)
+					return 0;
+				dn[len + 1 + label_len++] = c;
+			}
+		}
+		if (label_len == 0)
+			return 0;
+		dn[len] = label_len;
+		len += 1 + label_len;
+		if (*s != '.') {
+			rel = 1;
+			break;
+		}
+		++s;
 	}
-	if (*src)
-		errx(1, "domain name does not end with root label");
-	*dst++ = 0;
-	return dst;
+out:
+	if (*s && *s != ' ' && *s != '\t')
+		return 0;
+	if (rel) {
+		if (!origin_len || len + origin_len > DNAME_MAX)
+			return 0;
+		memcpy(dn + len, origin, origin_len);
+		len += origin_len;
+	} else {
+		dn[len++] = 0;
+	}
+	return len;
 }
 
 int
-dname_labels(const char *name)
+dname_compare(const unsigned char *n1, const unsigned char *n2)
 {
-	int labels;
+	unsigned char l1[DNAME_MAX], l2[DNAME_MAX], *p1 = l1, *p2 = l2;
+	size_t l;
+	int r;
 
-	if (strcmp(name, ".") == 0)
-		return 0;
-	for (labels = 0; *name; ++name, ++labels) {
-		name = strchr(name, '.');
-		assert(name);
+	/* get label lengths */
+	for (; *n1; n1 += 1 + *n1)
+		*p1++ = *n1;
+	for (; *n2; n2 += 1 + *n2)
+		*p2++ = *n2;
+
+	for (; p1 > l1 && p2 > l2; --n1, --n2) {
+		l = *--p1 <= *--p2 ? *p1 : *p2;
+		r = memcmp(n1 -= *p1, n2 -= *p2, l);
+		if (r != 0)
+			return r;
+		if (l < *p1)
+			return 1;
+		if (l < *p2)
+			return -1;
 	}
+	return (p1 > l1) - (p2 > l2);
+}
+
+int
+dname_print(const unsigned char *dn)
+{
+	for (; *dn; dn += 1 + *dn) {
+		if (fwrite(dn + 1, 1, *dn, stdout) != *dn || fputc('.', stdout) == EOF)
+			return -1;
+	}
+	return 0;
+}
+
+int
+dname_labels(const unsigned char *dn)
+{
+	int labels = 0;
+
+	for (; *dn; dn += 1 + *dn)
+		++labels;
 	return labels;
 }
 

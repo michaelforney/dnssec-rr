@@ -104,9 +104,12 @@ main(int argc, char *argv[])
 		struct rr *rr = z->rr[i];
 		int labels = dname_labels(rr->name);
 		unsigned tag = dnskey_tag(pk);
-		printf("%s\t%lu\t%s\tRRSIG\t%s %d %d %lu %s %s %u %s ",
-		       rr->name, rr->ttl, class_to_string(rr->class), type_to_string(rr->type),
-		       sk->algorithm, labels, rr->ttl, end, start, tag, z->rr[0]->name);
+		dname_print(rr->name);
+		printf("\t%lu\t%s\tRRSIG\t%s %d %d %lu %s %s %u ",
+		       rr->ttl, class_to_string(rr->class), type_to_string(rr->type),
+		       sk->algorithm, labels, rr->ttl, end, start, tag);
+		dname_print(z->rr[0]->name);
+		putchar(' ');
 		hc.vtable->init(&hc.vtable);
 		hc.vtable->update(&hc.vtable, &(uint16_t){htons(rr->type)}, 2);
 		hc.vtable->update(&hc.vtable, &(uint8_t){sk->algorithm}, 1);
@@ -115,15 +118,15 @@ main(int argc, char *argv[])
 		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(end_time)}, 4);
 		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(start_time)}, 4);
 		hc.vtable->update(&hc.vtable, &(uint16_t){htons(tag)}, 2);
-		dname_hash(z->rr[0]->name, &hc.vtable);
+		hc.vtable->update(&hc.vtable, z->rr[0]->name, z->rr[0]->name_len);
 		do {
-			dname_hash(z->rr[j]->name, &hc.vtable);
+			hc.vtable->update(&hc.vtable, z->rr[j]->name, z->rr[j]->name_len);
 			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->type)}, 2);
 			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->class)}, 2);
 			hc.vtable->update(&hc.vtable, &(uint32_t){htonl(z->rr[j]->ttl)}, 4);
 			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->rdata_len)}, 2);
 			hc.vtable->update(&hc.vtable, z->rr[j]->rdata, z->rr[j]->rdata_len);
-		} while (++j < z->rr_len && strcmp(rr->name, z->rr[j]->name) == 0 && rr->type == z->rr[j]->type);
+		} while (++j < z->rr_len && dname_compare(rr->name, z->rr[j]->name) == 0 && rr->type == z->rr[j]->type);
 
 		unsigned char hash[64];
 		size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;
