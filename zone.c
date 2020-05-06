@@ -46,10 +46,10 @@ rr_compare(const void *p1, const void *p2)
 		return rr1->type == TYPE_SOA ? -1 : rr2->type == TYPE_SOA ? 1 : rr1->type - rr2->type;
 	if (rr1->class != rr2->class)
 		return rr1->class - rr2->class;
-	size_t len = rr1->rdata_length < rr2->rdata_length ? rr1->rdata_length : rr2->rdata_length;
-	if ((r = memcmp(rr1->rdata, rr2->rdata, len)) != 0 || rr1->rdata_length == rr2->rdata_length)
+	size_t len = rr1->rdata_len < rr2->rdata_len ? rr1->rdata_len : rr2->rdata_len;
+	if ((r = memcmp(rr1->rdata, rr2->rdata, len)) != 0 || rr1->rdata_len == rr2->rdata_len)
 		return r;
-	return len == rr1->rdata_length ? -1 : 1;
+	return len == rr1->rdata_len ? -1 : 1;
 }
 
 static void
@@ -57,26 +57,26 @@ zone_add(struct zone *z, struct rr *rr)
 {
 	struct rr **rrs;
 
-	if (!(z->rr_length & (z->rr_length - 1))) {
-		if (!(rrs = realloc(z->rr, (z->rr_length ? z->rr_length * 2 : 1) * sizeof(rr))))
+	if (!(z->rr_len & (z->rr_len - 1))) {
+		if (!(rrs = realloc(z->rr, (z->rr_len ? z->rr_len * 2 : 1) * sizeof(rr))))
 			err(1, "realloc");
 		z->rr = rrs;
 	}
-	z->rr[z->rr_length++] = rr;
+	z->rr[z->rr_len++] = rr;
 }
 
 static struct rr *
-rr_new(char *name, int type, int class, unsigned long ttl, size_t rdata_length)
+rr_new(char *name, int type, int class, unsigned long ttl, size_t rdata_len)
 {
 	struct rr *rr;
 
-	if (!(rr = malloc(sizeof(*rr) + rdata_length)))
+	if (!(rr = malloc(sizeof(*rr) + rdata_len)))
 		err(1, "malloc");
 	rr->name = name;
 	rr->type = type;
 	rr->class = class;
 	rr->ttl = ttl;
-	rr->rdata_length = rdata_length;
+	rr->rdata_len = rdata_len;
 	return rr;
 }
 
@@ -90,7 +90,7 @@ zone_new_from_file(const char *path, FILE *file)
 	if (!(z = malloc(sizeof(*z))))
 		err(1, "malloc");
 	z->rr = NULL;
-	z->rr_length = 0;
+	z->rr_len = 0;
 	for (;;) {
 		ssize_t n;
 		if ((n = getline(&buf, &len, file)) < 0) {
@@ -118,7 +118,7 @@ zone_new_from_file(const char *path, FILE *file)
 			errx(1, "invalid RR: expected type");
 		int type = type_from_string(tok);
 		struct rr *rr;
-		if ((type == TYPE_SOA) != (z->rr_length == 0))
+		if ((type == TYPE_SOA) != (z->rr_len == 0))
 			errx(1, "exactly one SOA record must be present at start of zone");
 		switch (type) {
 		char *ns, *owner;
@@ -253,7 +253,7 @@ zone_new_from_file(const char *path, FILE *file)
 			memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
 			rr->rdata[2] = protocol;
 			rr->rdata[3] = algorithm;
-			rr->rdata_length = 4 + base64_decode(rr->rdata + 4, tok);
+			rr->rdata_len = 4 + base64_decode(rr->rdata + 4, tok);
 			break;
 		case TYPE_NSEC:
 			if (!(tok = strtok(NULL, " \t")))
@@ -269,7 +269,7 @@ zone_new_from_file(const char *path, FILE *file)
 				if (type / 8 + 1 > p[1])
 					p[1] = type / 8 + 1;
 			}
-			rr->rdata_length -= 32 - p[1];
+			rr->rdata_len -= 32 - p[1];
 			break;
 		case TYPE_TLSA:
 			if (!(tok = strtok(NULL, " \t")))
@@ -296,7 +296,7 @@ zone_new_from_file(const char *path, FILE *file)
 			rr->rdata[0] = usage;
 			rr->rdata[1] = selector;
 			rr->rdata[2] = match;
-			rr->rdata_length = 3 + base16_decode(rr->rdata + 3, tok);
+			rr->rdata_len = 3 + base16_decode(rr->rdata + 3, tok);
 			break;
 		default:
 			errx(1, "unsupported record type %s", type_to_string(type));
@@ -304,7 +304,7 @@ zone_new_from_file(const char *path, FILE *file)
 		zone_add(z, rr);
 	}
 	free(buf);
-	qsort(z->rr, z->rr_length, sizeof(z->rr[0]), rr_compare);
+	qsort(z->rr, z->rr_len, sizeof(z->rr[0]), rr_compare);
 
 	return z;
 }

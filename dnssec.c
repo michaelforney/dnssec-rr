@@ -176,7 +176,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 		/* leading zeros in exponent are prohibited */
 		for (k->data[0] = 4; !(e & 0xff000000); --k->data[0])
 			e <<= 8;
-		k->data_length = 1 + k->data[0] + nlen;
+		k->data_len = 1 + k->data[0] + nlen;
 		memcpy(k->data + 1, &(uint32_t){htonl(e)}, k->data[0]);
 		br_rsa_compute_modulus_get_default()(k->data + 1 + k->data[0], &sk->rsa);
 		break;
@@ -185,7 +185,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 			errx(1, "unexpected public key size");
 		if (!(k = malloc(sizeof(*k) + 64)))
 			err(1, "malloc");
-		k->data_length = 64;
+		k->data_len = 64;
 		memcpy(k->data, buf + 1, 64);
 		break;
 	case ALGORITHM_ECDSAP384SHA384:
@@ -193,7 +193,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 			errx(1, "unexpected public key size");
 		if (!(k = malloc(sizeof(*k) + 96)))
 			err(1, "malloc");
-		k->data_length = 96;
+		k->data_len = 96;
 		memcpy(k->data, buf + 1, 96);
 		break;
 	default:
@@ -213,7 +213,7 @@ dnskey_tag(const struct dnskey *k)
 	size_t i;
 
 	x = k->flags + (k->protocol << 8) + k->algorithm;
-	for (i = 0, p = k->data; i < k->data_length; ++p, ++i)
+	for (i = 0, p = k->data; i < k->data_len; ++p, ++i)
 		x += i & 1 ? *p : (unsigned long)*p << 8;
 	return (x + (x >> 16)) & 0xffff;
 }

@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 		err(1, "gmtime");
 	strftime(end, sizeof(end), "%Y%m%d%H%M%S", tm);
 
-	for (size_t i = 0, j = 0; i < z->rr_length; i = j) {
+	for (size_t i = 0, j = 0; i < z->rr_len; i = j) {
 		if ((!kflag && z->rr[i]->type == TYPE_DNSKEY) || (!zflag && z->rr[i]->type != TYPE_DNSKEY)) {
 			j = i + 1;
 			continue;
@@ -121,9 +121,9 @@ main(int argc, char *argv[])
 			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->type)}, 2);
 			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->class)}, 2);
 			hc.vtable->update(&hc.vtable, &(uint32_t){htonl(z->rr[j]->ttl)}, 4);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->rdata_length)}, 2);
-			hc.vtable->update(&hc.vtable, z->rr[j]->rdata, z->rr[j]->rdata_length);
-		} while (++j < z->rr_length && strcmp(rr->name, z->rr[j]->name) == 0 && rr->type == z->rr[j]->type);
+			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->rdata_len)}, 2);
+			hc.vtable->update(&hc.vtable, z->rr[j]->rdata, z->rr[j]->rdata_len);
+		} while (++j < z->rr_len && strcmp(rr->name, z->rr[j]->name) == 0 && rr->type == z->rr[j]->type);
 
 		unsigned char hash[64];
 		size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;

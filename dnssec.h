@@ -74,7 +74,7 @@ struct dnskey {
 	unsigned flags;
 	int protocol;
 	int algorithm;
-	size_t data_length;
+	size_t data_len;
 	unsigned char data[];
 };
 
@@ -94,7 +94,7 @@ struct rr {
 	int type;
 	int class;
 	unsigned long ttl;
-	size_t rdata_length;
+	size_t rdata_len;
 	unsigned char rdata[];
 };
 
@@ -103,7 +103,7 @@ struct zone {
 		unsigned long minimum_ttl;
 	} soa;
 	struct rr **rr;
-	size_t rr_length;
+	size_t rr_len;
 };
 
 struct zone *zone_new_from_file(const char *, FILE *);

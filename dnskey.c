@@ -43,9 +43,9 @@ main(int argc, char *argv[])
 	struct key *sk = key_new_from_file(argv[1]);
 	struct dnskey *pk = dnskey_new(flags, sk);
 	printf("%s\t%lu\t%s\tDNSKEY\t%u %d %d ", argv[0], ttl, class_to_string(class), pk->flags, pk->protocol, pk->algorithm);
-	for (size_t i = 0; i < pk->data_length; i += 300) {
+	for (size_t i = 0; i < pk->data_len; i += 300) {
 		char data[401];
-		base64_encode(data, pk->data + i, i + 300 < pk->data_length ? 300 : pk->data_length - i);
+		base64_encode(data, pk->data + i, i + 300 < pk->data_len ? 300 : pk->data_len - i);
 		fputs(data, stdout);
 	}
 	putchar('\n');

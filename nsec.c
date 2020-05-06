@@ -26,7 +26,7 @@ main(int argc, char *argv[])
 	}
 
 	struct zone *z = zone_new_from_file(name, file);
-	for (size_t i = 0, j = 0; i < z->rr_length; i = j) {
+	for (size_t i = 0, j = 0; i < z->rr_len; i = j) {
 		unsigned char m[32] = {0}, t;
 		m[TYPE_NSEC / 8] |= 0x80 >> (TYPE_NSEC % 8);
 		m[TYPE_RRSIG / 8] |= 0x80 >> (TYPE_RRSIG % 8);
@@ -34,9 +34,9 @@ main(int argc, char *argv[])
 			if ((t = z->rr[j]->type) > 255)
 				errx(1, "record types above 255 are not supported");
 			m[t / 8] |= 0x80 >> (t % 8);
-		} while (++j < z->rr_length && strcmp(z->rr[i]->name, z->rr[j]->name) == 0);
+		} while (++j < z->rr_len && strcmp(z->rr[i]->name, z->rr[j]->name) == 0);
 
-		printf("%s\t%lu\t%s\tNSEC\t%s", z->rr[i]->name, z->soa.minimum_ttl, class_to_string(z->rr[i]->class), z->rr[j % z->rr_length]->name);
+		printf("%s\t%lu\t%s\tNSEC\t%s", z->rr[i]->name, z->soa.minimum_ttl, class_to_string(z->rr[i]->class), z->rr[j % z->rr_len]->name);
 		for (int t = 0; t <= 255; ++t) {
 			if (m[t / 8] & 0x80 >> t % 8)
 				printf(" %s", type_to_string(t));

@@ -58,7 +58,7 @@ main(int argc, char *argv[])
 	hc.vtable->update(&hc.vtable, &(uint16_t){htons(pk->flags)}, 2);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->protocol}, 1);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->algorithm}, 1);
-	hc.vtable->update(&hc.vtable, pk->data, pk->data_length);
+	hc.vtable->update(&hc.vtable, pk->data, pk->data_len);
 	unsigned char hash[64];
 	size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;
 	hc.vtable->out(&hc.vtable, hash);
