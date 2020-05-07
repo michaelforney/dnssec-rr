@@ -266,8 +266,7 @@ zone_new_from_file(const char *path, FILE *file)
 			p = rr->rdata;
 			memcpy(p, dname, dname_len);
 			p += dname_len;
-			p[0] = 0;
-			p[1] = 0;
+			memset(p, 0, 34);
 			while ((tok = strtok(NULL, " \t"))) {
 				if ((type = type_from_string(tok)) > 255)
 					errx(1, "unsupported record type %s", tok);
