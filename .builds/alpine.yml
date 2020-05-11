@@ -1,0 +1,7 @@
+image: alpine/edge
+packages:
+- bearssl-dev
+sources:
+- https://git.sr.ht/~mcf/dnssec-rr
+tasks:
+- build: make -C dnssec-rr
