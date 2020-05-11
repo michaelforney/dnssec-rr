@@ -85,6 +85,7 @@ parse_init(struct parser *p, const char *name, char *errbuf, size_t errlen)
 	memset(p, 0, sizeof(*p));
 	p->errbuf = errbuf;
 	p->errlen = errlen;
+	p->class = CLASS_IN;
 	if (!(p->input = parse_open(p, name)))
 		return -1;
 	return 0;
@@ -313,10 +314,6 @@ parse_rr(struct parser *p)
 	}
 	if (!ttl && !p->ttl) {
 		parse_error(p, item, "expected TTL");
-		goto err;
-	}
-	if (!class && !p->class) {
-		parse_error(p, item, "expected class");
 		goto err;
 	}
 	if (!(type = type_from_string(item))) {
