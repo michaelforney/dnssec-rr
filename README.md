@@ -1,3 +1,7 @@
+# dnssec-rr
+
+[![builds.sr.ht status](https://builds.sr.ht/~mcf/dnssec-rr.svg)](https://builds.sr.ht/~mcf/dnssec-rr)
+
 This repository contains a few tools for working with DNSSEC. The
 tools are implemented using [BearSSL].
 
