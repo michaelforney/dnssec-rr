@@ -17,9 +17,15 @@ struct input {
 
 struct parser {
 	struct input *input;
+	/* current line */
 	char *buf, *pos, *end;
 	size_t buf_len;
+	/* temporary buffer for record data */
+	char *tmp;
+	size_t tmp_len;
+	/* $TTL value */
 	unsigned long ttl;
+	/* parentheses nesting level */
 	unsigned paren;
 	int class, err;
 	char *errbuf;
@@ -173,6 +179,31 @@ parse_item(struct parser *p, size_t *len)
 }
 
 static size_t
+parse_data(struct parser *p)
+{
+	char *item, *new_tmp;
+	size_t len = 0, new_len, item_len;
+
+	while ((item = parse_item(p, &item_len))) {
+		new_len = len + item_len;
+		if (new_len + 1 > p->tmp_len) {
+			if (!(new_tmp = realloc(p->tmp, new_len + 1))) {
+				parse_error(p, NULL, "%s", strerror(errno));
+				return 0;
+			}
+			p->tmp = new_tmp;
+			p->tmp_len = new_len + 1;
+		}
+		memcpy(p->tmp + len, item, item_len);
+		len = new_len;
+	}
+	if (p->err || !len)
+		return 0;
+	p->tmp[len] = '\0';
+	return len;
+}
+
+static size_t
 parse_dname(struct parser *p, unsigned char buf[static DNAME_MAX], const char **err)
 {
 	if (next_item(p) != 1) {
@@ -217,9 +248,9 @@ parse_rr(struct parser *p)
 {
 	struct rr *rr = NULL;
 	const char *err;
-	char *item, *buf = NULL, *new_buf;
+	char *item;
 	unsigned char dname[DNAME_MAX], *rdata;
-	size_t item_len, buf_len = 0, dname_len;
+	size_t dname_len;
 	int type, class;
 	unsigned long ttl;
 
@@ -336,24 +367,12 @@ parse_rr(struct parser *p)
 			parse_error(p, NULL, "%s", strerror(errno));
 			goto err;
 		}
-		unsigned char *rdata = rr->rdata;
-		while ((item = parse_item(p, &item_len))) {
-			if (item_len % 2) {
-				parse_error(p, item, "invalid generic RDATA: item must have even length");
-				goto err;
-			}
-			if (len < item_len / 2) {
-				parse_error(p, item, "invalid generic RDATA: data exceeds specified length");
-				goto err;
-			}
-			item_len = base16_decode(rdata, item);
-			rdata += item_len;
-			len -= item_len;
-		}
-		if (len > 0)
-			parse_error(p, item, "invalid generic RDATA: data is shorter than specified length");
+		size_t data_len = parse_data(p);
+		if (data_len != len * 2)
+			parse_error(p, p->pos, "invalid generic RDATA: data length differs from specified length");
 		if (p->err)
 			goto err;
+		base16_decode(rr->rdata, p->tmp);
 	} else switch (type) {
 	case TYPE_A:
 		if (!(rr = rr_new(4))) {
@@ -531,27 +550,18 @@ parse_rr(struct parser *p)
 			parse_error(p, p->pos, "invalid DNSKEY: algorithm: %s", err);
 			goto err;
 		}
-		while ((item = parse_item(p, &item_len))) {
-			if (!(new_buf = realloc(buf, buf_len + item_len + 1))) {
-				parse_error(p, NULL, "%s", strerror(errno));
-				goto err;
-			}
-			buf = new_buf;
-			memcpy(buf + buf_len, item, item_len);
-			buf_len += item_len;
-		}
-		if (buf_len == 0)
+		size_t len = parse_data(p);
+		if (len == 0)
 			parse_error(p, p->pos, "invalid DNSKEY: expected public key");
-		if (buf_len % 4)
+		if (len % 4)
 			parse_error(p, p->pos, "invalid DNSKEY: public key base64 has invalid length");
 		if (p->err)
 			goto err;
-		buf[buf_len] = '\0';
-		rr = rr_new(4 + buf_len * 3 / 4);
+		rr = rr_new(4 + len * 3 / 4);
 		memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
 		rr->rdata[2] = protocol;
 		rr->rdata[3] = algorithm;
-		rr->rdata_len = 4 + base64_decode(rr->rdata + 4, buf);
+		rr->rdata_len = 4 + base64_decode(rr->rdata + 4, p->tmp);
 		break;
 	}
 	case TYPE_NSEC:
@@ -598,30 +608,23 @@ parse_rr(struct parser *p)
 			parse_error(p, p->pos, "invalid TLSA: match: %s", err);
 			goto err;
 		}
-		while ((item = parse_item(p, &item_len))) {
-			if (!(new_buf = realloc(buf, buf_len + item_len + 1))) {
-				parse_error(p, NULL, "%s", strerror(errno));
-				goto err;
-			}
-			buf = new_buf;
-			memcpy(buf + buf_len, item, item_len);
-			buf_len += item_len;
-		}
-		if (p->err)
-			goto err;
-		if (buf_len == 0) {
+		size_t len = parse_data(p);
+		if (len == 0) {
 			parse_error(p, p->pos, "invalid TLSA: expected certificate association data");
 			goto err;
 		}
-		buf[buf_len] = '\0';
-		if (!(rr = rr_new(3 + buf_len / 2))) {
+		if (len % 2) {
+			parse_error(p, p->pos, "invalid TLS: certificate association data must have even length");
+			goto err;
+		}
+		if (!(rr = rr_new(3 + len / 2))) {
 			parse_error(p, NULL, "%s", strerror(errno));
 			goto err;
 		}
 		rr->rdata[0] = usage;
 		rr->rdata[1] = selector;
 		rr->rdata[2] = match;
-		rr->rdata_len = 3 + base16_decode(rr->rdata + 3, buf);
+		rr->rdata_len = 3 + base16_decode(rr->rdata + 3, p->tmp);
 		break;
 	}
 	default:
@@ -637,12 +640,10 @@ parse_rr(struct parser *p)
 		parse_error(p, p->pos, "unexpected item after record");
 		goto err;
 	}
-	free(buf);
 	return rr;
 
 err:
 	free(rr);
-	free(buf);
 	return NULL;
 }
 
@@ -708,6 +709,8 @@ zone_parse(struct zone *z, const char *name, char *errbuf, size_t errlen)
 	if (p.err)
 		goto err;
 	qsort(z->rr, z->rr_len, sizeof(z->rr[0]), rr_compare);
+	free(p.buf);
+	free(p.tmp);
 	return 0;
 err:
 	while (p.input) {
@@ -718,5 +721,6 @@ err:
 		p.input = next;
 	}
 	free(p.buf);
+	free(p.tmp);
 	return -1;
 }
