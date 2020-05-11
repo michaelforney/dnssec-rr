@@ -629,6 +629,7 @@ parse_rr(struct parser *p)
 	}
 	default:
 		parse_error(p, p->pos, "unsupported record type '%s'", type_to_string(type));
+		goto err;
 	}
 	memcpy(rr->name, p->input->domain, p->input->domain_len);
 	rr->name_len = p->input->domain_len;
