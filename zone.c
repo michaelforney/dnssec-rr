@@ -635,7 +635,7 @@ parse_rr(struct parser *p)
 	rr->name_len = p->input->domain_len;
 	rr->type = type;
 	rr->class = p->class = class ? class : p->class;
-	rr->ttl = p->ttl = ttl ? ttl : p->ttl;
+	rr->ttl = ttl ? ttl : p->ttl;
 	if (next_item(p) != 0) {
 		parse_error(p, p->pos, "unexpected item after record");
 		goto err;
