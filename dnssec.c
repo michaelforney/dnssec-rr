@@ -15,7 +15,7 @@ find_string(const char *str[], size_t len, const char *s)
 		if (str[i] && strcmp(str[i], s) == 0)
 			return i;
 	}
-	return -1;
+	return 0;
 }
 
 static const char *type_names[] = {
@@ -36,16 +36,25 @@ static const char *type_names[] = {
 int
 type_from_string(const char *s)
 {
-	size_t i = find_string(type_names, LEN(type_names), s);
-	if (i == -1)
-		errx(1, "unknown type '%s'", s);
-	return i;
+	int type = find_string(type_names, LEN(type_names), s);
+	if (!type && strncmp(s, "TYPE", 4) == 0) {
+		char *end;
+		type = strtoul(s + 4, &end, 10);
+		if (*end)
+			type = 0;
+	}
+	return type;
 }
 
 const char *
 type_to_string(int type)
 {
-	return type_names[type];
+	static char buf[4 + 5 + 1];
+
+	if (type < LEN(type_names) && type_names[type])
+		return type_names[type];
+	snprintf(buf, sizeof(buf), "TYPE%d", type);
+	return buf;
 }
 
 static const char *class_names[] = {
@@ -55,16 +64,25 @@ static const char *class_names[] = {
 int
 class_from_string(const char *s)
 {
-	size_t i = find_string(class_names, LEN(class_names), s);
-	if (i == -1)
-		errx(1, "unknown class '%s'", s);
-	return i;
+	int class = find_string(class_names, LEN(class_names), s);
+	if (!class && strncmp(s, "CLASS", 5) == 0) {
+		char *end;
+		class = strtoul(s + 5, &end, 10);
+		if (*end)
+			class = 0;
+	}
+	return class;
 }
 
 const char *
 class_to_string(int class)
 {
-	return class_names[class];
+	static char buf[5 + 5 + 1];
+
+	if (class < LEN(class_names) && class_names[class])
+		return class_names[class];
+	snprintf(buf, sizeof(buf), "CLASS%d", class);
+	return buf;
 }
 
 static const char *algorithm_names[] = {

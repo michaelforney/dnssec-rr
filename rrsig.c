@@ -17,8 +17,6 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	const char *name = "<stdin>";
-	FILE *file = stdin;
 	int kflag = 0, zflag = 0, c;
 	unsigned long start_time = 0, end_time = 0;
 
@@ -46,11 +44,6 @@ main(int argc, char *argv[])
 	argv += optind;
 	if (argc != 1 && argc != 2)
 		usage();
-	if (argc == 2) {
-		name = argv[1];
-		if (!(file = fopen(name, "r")))
-			err(1, "open %s", name);
-	}
 
 	if (!kflag && !zflag) {
 		kflag = 1;
@@ -61,7 +54,13 @@ main(int argc, char *argv[])
 	if (!end_time)
 		end_time = start_time + 30 * 86400;
 
-	struct zone *z = zone_new_from_file(name, file);
+	struct zone z;
+	char errmsg[256];
+	if (zone_parse(&z, argv[1], errmsg, sizeof(errmsg)) != 0) {
+		fprintf(stderr, "%s\n", errmsg);
+		errx(1, "zone parse failed");
+	}
+
 	struct key *sk = key_new_from_file(argv[0]);
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | (kflag ? DNSKEY_SEP : 0), sk);
 
@@ -102,20 +101,20 @@ main(int argc, char *argv[])
 		err(1, "gmtime");
 	strftime(end, sizeof(end), "%Y%m%d%H%M%S", tm);
 
-	for (size_t i = 0, j = 0; i < z->rr_len; i = j) {
-		if ((!kflag && z->rr[i]->type == TYPE_DNSKEY) || (!zflag && z->rr[i]->type != TYPE_DNSKEY)) {
+	for (size_t i = 0, j = 0; i < z.rr_len; i = j) {
+		if ((!kflag && z.rr[i]->type == TYPE_DNSKEY) || (!zflag && z.rr[i]->type != TYPE_DNSKEY)) {
 			j = i + 1;
 			continue;
 		}
 
-		struct rr *rr = z->rr[i];
+		struct rr *rr = z.rr[i];
 		int labels = dname_labels(rr->name);
 		unsigned tag = dnskey_tag(pk);
 		dname_print(rr->name);
 		printf("\t%lu\t%s\tRRSIG\t%s %d %d %lu %s %s %u ",
 		       rr->ttl, class_to_string(rr->class), type_to_string(rr->type),
 		       sk->algorithm, labels, rr->ttl, end, start, tag);
-		dname_print(z->rr[0]->name);
+		dname_print(z.rr[0]->name);
 		putchar(' ');
 		hc.vtable->init(&hc.vtable);
 		hc.vtable->update(&hc.vtable, &(uint16_t){htons(rr->type)}, 2);
@@ -125,15 +124,15 @@ main(int argc, char *argv[])
 		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(end_time)}, 4);
 		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(start_time)}, 4);
 		hc.vtable->update(&hc.vtable, &(uint16_t){htons(tag)}, 2);
-		hc.vtable->update(&hc.vtable, z->rr[0]->name, z->rr[0]->name_len);
+		hc.vtable->update(&hc.vtable, z.rr[0]->name, z.rr[0]->name_len);
 		do {
-			hc.vtable->update(&hc.vtable, z->rr[j]->name, z->rr[j]->name_len);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->type)}, 2);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->class)}, 2);
-			hc.vtable->update(&hc.vtable, &(uint32_t){htonl(z->rr[j]->ttl)}, 4);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z->rr[j]->rdata_len)}, 2);
-			hc.vtable->update(&hc.vtable, z->rr[j]->rdata, z->rr[j]->rdata_len);
-		} while (++j < z->rr_len && dname_compare(rr->name, z->rr[j]->name) == 0 && rr->type == z->rr[j]->type);
+			hc.vtable->update(&hc.vtable, z.rr[j]->name, z.rr[j]->name_len);
+			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->type)}, 2);
+			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->class)}, 2);
+			hc.vtable->update(&hc.vtable, &(uint32_t){htonl(z.rr[j]->ttl)}, 4);
+			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->rdata_len)}, 2);
+			hc.vtable->update(&hc.vtable, z.rr[j]->rdata, z.rr[j]->rdata_len);
+		} while (++j < z.rr_len && dname_compare(rr->name, z.rr[j]->name) == 0 && rr->type == z.rr[j]->type);
 
 		unsigned char hash[64];
 		size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;

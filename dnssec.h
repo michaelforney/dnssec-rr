@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <bearssl.h>
 
 enum {
@@ -106,11 +105,9 @@ struct rr {
 };
 
 struct zone {
-	struct {
-		unsigned long minimum_ttl;
-	} soa;
+	unsigned long minimum_ttl;
 	struct rr **rr;
 	size_t rr_len;
 };
 
-struct zone *zone_new_from_file(const char *, FILE *);
+int zone_parse(struct zone *, const char *, char *, size_t);

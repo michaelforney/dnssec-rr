@@ -1,316 +1,724 @@
+#include <ctype.h>
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
-#include <err.h>
 #include "dnssec.h"
 
+struct input {
+	char *name;
+	FILE *file;
+	unsigned line;
+	unsigned char origin[DNAME_MAX], domain[DNAME_MAX];
+	size_t origin_len, domain_len;
+	struct input *next;
+};
+
+struct parser {
+	struct input *input;
+	char *buf, *pos, *end;
+	size_t buf_len;
+	unsigned long ttl;
+	unsigned paren;
+	int class, err;
+	char *errbuf;
+	size_t errlen;
+};
+
+static struct rr *
+rr_new(size_t rdata_len)
+{
+	struct rr *rr;
+
+	if (!(rr = malloc(sizeof(*rr) + rdata_len)))
+		return NULL;
+	rr->rdata_len = rdata_len;
+	return rr;
+}
+
+static void
+parse_error(struct parser *p, const char *pos, const char *fmt, ...)
+{
+	if (!p->err && p->errbuf) {
+		size_t off = 0;
+		if (pos) {
+			int ret = snprintf(p->errbuf, p->errlen, "%s:%u:%td: ", p->input->name, p->input->line, pos - p->buf + 1);
+			if (ret >= 0)
+				off += ret;
+		}
+		va_list ap;
+		va_start(ap, fmt);
+		vsnprintf(p->errbuf + off, p->errlen - off, fmt, ap);
+		va_end(ap);
+	}
+	p->err = 1;
+}
+
+static struct input *
+parse_open(struct parser *p, const char *name)
+{
+	struct input *input = calloc(1, sizeof(*input));
+	if (!input || !(input->name = strdup(name ? name : "<stdin>"))) {
+		parse_error(p, NULL, "%s", strerror(errno));
+		goto err;
+	}
+	if (!name) {
+		input->file = stdin;
+	} else if (!(input->file = fopen(name, "r"))) {
+		parse_error(p, NULL, "open %s: %s", name, strerror(errno));
+		goto err;
+	}
+	return input;
+
+err:
+	if (input) {
+		free(input->name);
+		free(input);
+	}
+	return NULL;
+}
+
+static int
+parse_init(struct parser *p, const char *name, char *errbuf, size_t errlen)
+{
+	memset(p, 0, sizeof(*p));
+	p->errbuf = errbuf;
+	p->errlen = errlen;
+	if (!(p->input = parse_open(p, name)))
+		return -1;
+	return 0;
+}
+
+static int
+next_line(struct parser *p)
+{
+	ssize_t ret;
+
+	while (p->input && (ret = getline(&p->buf, &p->buf_len, p->input->file)) < 0) {
+		if (ferror(p->input->file)) {
+			parse_error(p, NULL, "read %s: %s", p->input->name, strerror(errno));
+			return -1;
+		}
+		struct input *next = p->input->next;
+		if (p->input->file != stdin)
+			fclose(p->input->file);
+		free(p->input->name);
+		free(p->input);
+		p->input = next;
+	}
+	if (!p->input)
+		return -1;
+	if (ret && p->buf[ret - 1] == '\n')
+		p->buf[--ret] = '\0';
+	p->pos = p->buf;
+	p->end = p->buf + ret;
+	++p->input->line;
+	return 0;
+}
+
+/* skip forward to the next non-whitespace character, crossing line
+ * boundaries only if inside parentheses */
+static int
+next_item(struct parser *p)
+{
+	for (;;) {
+		while (p->pos < p->end && (*p->pos == ' ' || *p->pos == '\t'))
+			++p->pos;
+		if (p->pos == p->end) {
+			if (p->paren == 0)
+				return 0;
+			if (next_line(p) != 0)
+				return -1;
+			continue;
+		}
+		switch (*p->pos) {
+		case '(':
+			++p->pos;
+			++p->paren;
+			break;
+		case ')':
+			++p->pos;
+			--p->paren;
+			break;
+		case ';':
+			p->pos = p->end;
+			break;
+		default:
+			return 1;
+		}
+	}
+}
+
+static char *
+parse_item(struct parser *p, size_t *len)
+{
+	char *pos, *item;
+
+	if (next_item(p) != 1)
+		return NULL;
+	pos = p->pos;
+	while (pos < p->end && *pos != '\t' && *pos != ' ')
+		++pos;
+	if (pos == p->pos)
+		return NULL;
+	if (len)
+		*len = pos - p->pos;
+	if (pos < p->end)
+		*pos++ = '\0';
+	item = p->pos;
+	p->pos = pos;
+	return item;
+}
+
+static size_t
+parse_dname(struct parser *p, unsigned char buf[static DNAME_MAX], const char **err)
+{
+	if (next_item(p) != 1) {
+		if (err)
+			*err = "expected domain name";
+		return 0;
+	}
+	size_t len = dname_parse(p->pos, &p->pos, buf, p->input->origin, p->input->origin_len);
+	if (!len) {
+		if (err)
+			*err = "invalid domain name";
+		return 0;
+	}
+	*err = NULL;
+	return len;
+}
+
+static unsigned long
+parse_int(struct parser *p, const char **err)
+{
+	char *end;
+	unsigned long val;
+
+	if (next_item(p) != 1) {
+		if (err)
+			*err = "expected integer";
+		return 0;
+	}
+	val = strtoul(p->pos, &end, 10);
+	if (*end && *end != ' ' && *end != '\t' && *end != ';') {
+		if (err)
+			*err = "invalid integer";
+		return 0;
+	}
+	*err = NULL;
+	p->pos = end;
+	return val;
+}
+
+static struct rr *
+parse_rr(struct parser *p)
+{
+	struct rr *rr = NULL;
+	const char *err;
+	char *item, *buf = NULL, *new_buf;
+	unsigned char dname[DNAME_MAX], *rdata;
+	size_t item_len, buf_len = 0, dname_len;
+	int type, class;
+	unsigned long ttl;
+
+	for (;;) {
+		if (next_line(p) != 0)
+			goto err;
+		if (next_item(p) == 0)
+			continue;
+		if (p->err)
+			return NULL;
+		if (p->pos != p->buf)
+			break;
+		if (*p->pos != '$') {
+			p->input->domain_len = parse_dname(p, p->input->domain, &err);
+			if (p->input->domain_len == 0) {
+				parse_error(p, p->pos, "invalid RR: %s", err);
+				goto err;
+			}
+			break;
+		}
+		/* directive */
+		item = parse_item(p, NULL);
+		if (!item) {
+			parse_error(p, p->pos, "expected directive");
+			goto err;
+		}
+		if (strcmp(item, "$ORIGIN") == 0) {
+			p->input->origin_len = parse_dname(p, p->input->origin, &err);
+			if (p->input->origin_len == 0) {
+				parse_error(p, p->pos, "%s", err);
+				goto err;
+			}
+		} else if (strcmp(item, "$INCLUDE") == 0) {
+			if (!(item = parse_item(p, NULL))) {
+				parse_error(p, p->pos, "expected filename");
+				goto err;
+			}
+			struct input *input = parse_open(p, item);
+			if (!input)
+				goto err;
+			input->next = p->input;
+			p->input = input;
+			if (next_item(p) == 1) {
+				p->input->origin_len = parse_dname(p, p->input->origin, &err);
+				if (p->input->origin_len == 0) {
+					parse_error(p, p->pos, "%s", err);
+					goto err;
+				}
+			}
+			if (p->err)
+				goto err;
+		} else if (strcmp(item, "$TTL") == 0) {  /* RFC 2308 */
+			p->ttl = parse_int(p, &err);
+			if (err) {
+				parse_error(p, p->pos, "%s", err);
+				goto err;
+			}
+		} else {
+			parse_error(p, item, "unknown directive '%s'", item);
+			goto err;
+		}
+		if (next_item(p) != 0) {
+			parse_error(p, p->pos, "unexpected item after directive");
+			goto err;
+		}
+	}
+	if (p->input->domain_len == 0) {
+		parse_error(p, p->buf, "missing domain name");
+		goto err;
+	}
+	class = 0;
+	ttl = 0;
+	item = parse_item(p, NULL);
+	for (int i = 0; i < 2; ++i) {
+		if (!class && (class = class_from_string(item))) {
+			/* nothing */
+		} else if (!ttl && isdigit(item[0])) {
+			char *end;
+			ttl = strtoul(item, &end, 10);
+			if (*end) {
+				parse_error(p, item, "invalid TTL");
+				goto err;
+			}
+		} else {
+			break;
+		}
+		item = parse_item(p, NULL);
+		if (!item) {
+			parse_error(p, p->pos, "expected record type, class, or TTL");
+			goto err;
+		}
+	}
+	if (!ttl && !p->ttl) {
+		parse_error(p, item, "expected TTL");
+		goto err;
+	}
+	if (!class && !p->class) {
+		parse_error(p, item, "expected class");
+		goto err;
+	}
+	if (!(type = type_from_string(item))) {
+		parse_error(p, item, "unsupported record type '%s'", item);
+		goto err;
+	}
+	if (next_item(p) != 1) {
+		parse_error(p, p->pos, "invalid %s: expected RDATA", type_to_string(type));
+		goto err;
+	}
+	if (p->pos[0] == '\\' && p->pos[1] == '#' && (!p->pos[2] || p->pos[2] == ' ' || p->pos[2] == '\t' || p->pos[2] == ';')) {
+		/* RFC 3597 generic record format */
+		p->pos += 2;
+		size_t len = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid generic RDATA: %s", err);
+			goto err;
+		}
+		if (!(rr = rr_new(len * 2))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		unsigned char *rdata = rr->rdata;
+		while ((item = parse_item(p, &item_len))) {
+			if (item_len % 2) {
+				parse_error(p, item, "invalid generic RDATA: item must have even length");
+				goto err;
+			}
+			if (len < item_len / 2) {
+				parse_error(p, item, "invalid generic RDATA: data exceeds specified length");
+				goto err;
+			}
+			item_len = base16_decode(rdata, item);
+			rdata += item_len;
+			len -= item_len;
+		}
+		if (len > 0)
+			parse_error(p, item, "invalid generic RDATA: data is shorter than specified length");
+		if (p->err)
+			goto err;
+	} else switch (type) {
+	case TYPE_A:
+		if (!(rr = rr_new(4))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		if (!(item = parse_item(p, NULL))) {
+			parse_error(p, p->pos, "invalid A: expected IPv4 address");
+			goto err;
+		}
+		if (inet_pton(AF_INET, item, rr->rdata) != 1) {
+			parse_error(p, item, "invalid A: invalid IPv4 address");
+			goto err;
+		}
+		break;
+	case TYPE_NS:
+	case TYPE_CNAME:
+		if ((dname_len = parse_dname(p, dname, &err)) == 0) {
+			parse_error(p, p->pos, "invalid %s: %s", type_to_string(type), err);
+			return NULL;
+		}
+		if (!(rr = rr_new(dname_len))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			return NULL;
+		}
+		memcpy(rr->rdata, dname, dname_len);
+		break;
+	case TYPE_SOA: {
+		unsigned char mname[DNAME_MAX], rname[DNAME_MAX];
+		size_t mname_len, rname_len;
+
+		if ((mname_len = parse_dname(p, mname, &err)) == 0) {
+			parse_error(p, p->pos, "invalid SOA: name server: %s");
+			goto err;
+		}
+		if ((rname_len = parse_dname(p, rname, &err)) == 0) {
+			parse_error(p, p->pos, "invalid SOA: owner mailbox: %s");
+			goto err;
+		}
+		if (!(rr = rr_new(mname_len + rname_len + 20))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		rdata = rr->rdata;
+		memcpy(rdata, mname, mname_len);
+		rdata += mname_len;
+		memcpy(rdata, rname, rname_len);
+		rdata += rname_len;
+
+		unsigned long val;
+
+		/* serial */
+		val = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SOA: serial: %s", err);
+			goto err;
+		}
+		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		rdata += 4;
+
+		/* refresh */
+		val = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SOA: refresh interval: %s", err);
+			goto err;
+		}
+		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		rdata += 4;
+
+		/* retry */
+		val = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SOA: retry interval: %s", err);
+			goto err;
+		}
+		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		rdata += 4;
+
+		/* expire */
+		val = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SOA: expire interval: %s", err);
+			goto err;
+		}
+		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		rdata += 4;
+
+		/* minimum TTL */
+		val = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SOA: minimum TTL: %s", err);
+			goto err;
+		}
+		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		rdata += 4;
+		break;
+	}
+	case TYPE_MX: {
+		unsigned preference = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid MX: preference: %s", err);
+			goto err;
+		}
+		if ((dname_len = parse_dname(p, dname, &err)) == 0) {
+			parse_error(p, p->pos, "invalid MX: %s");
+			goto err;
+		}
+		if (!(rr = rr_new(2 + dname_len))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		memcpy(rr->rdata, &(uint16_t){htons(preference)}, 2);
+		memcpy(rr->rdata + 2, dname, dname_len);
+		break;
+	}
+	case TYPE_AAAA:
+		if (!(rr = rr_new(16))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		if (!(item = parse_item(p, NULL))) {
+			parse_error(p, p->pos, "invalid AAAA: expected IPv6 address");
+			goto err;
+		}
+		if (inet_pton(AF_INET6, item, rr->rdata) != 1) {
+			parse_error(p, p->pos, "invalid AAAA: invalid IPv6 address");
+			goto err;
+		}
+		break;
+	/* RFC 2782 */
+	case TYPE_SRV: {
+		unsigned priority = parse_int(p, &err);
+		if (p->err) {
+			parse_error(p, p->pos, "invalid SRV: priority: %s", err);
+			return NULL;
+		}
+		unsigned weight = parse_int(p, &err);
+		if (p->err) {
+			parse_error(p, p->pos, "invalid SRV: weight: %s", err);
+			return NULL;
+		}
+		unsigned port = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SRV: port: %s", err);
+			return NULL;
+		}
+		if (!(dname_len = parse_dname(p, dname, &err))) {
+			parse_error(p, p->pos, "invalid SRV: %s", err);
+			return NULL;
+		}
+		if (!(rr = rr_new(6 + dname_len))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			return NULL;
+		}
+		memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
+		memcpy(rr->rdata + 2, &(uint16_t){htons(weight)}, 2);
+		memcpy(rr->rdata + 4, &(uint16_t){htons(port)}, 2);
+		memcpy(rr->rdata + 6, dname, dname_len);
+		break;
+	}
+	/* RFC 4034 */
+	case TYPE_DNSKEY: {
+		unsigned flags = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid DNSKEY: flags: %s", err);
+			goto err;
+		}
+		int protocol = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid DNSKEY: protocol: %s", err);
+			goto err;
+		}
+		int algorithm = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid DNSKEY: algorithm: %s", err);
+			goto err;
+		}
+		while ((item = parse_item(p, &item_len))) {
+			if (!(new_buf = realloc(buf, buf_len + item_len + 1))) {
+				parse_error(p, NULL, "%s", strerror(errno));
+				goto err;
+			}
+			buf = new_buf;
+			memcpy(buf + buf_len, item, item_len);
+			buf_len += item_len;
+		}
+		if (buf_len == 0)
+			parse_error(p, p->pos, "invalid DNSKEY: expected public key");
+		if (buf_len % 4)
+			parse_error(p, p->pos, "invalid DNSKEY: public key base64 has invalid length");
+		if (p->err)
+			goto err;
+		buf[buf_len] = '\0';
+		rr = rr_new(4 + buf_len * 3 / 4);
+		memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
+		rr->rdata[2] = protocol;
+		rr->rdata[3] = algorithm;
+		rr->rdata_len = 4 + base64_decode(rr->rdata + 4, buf);
+		break;
+	}
+	case TYPE_NSEC:
+		/* XXX: only types up to 255 are supported for now */
+		if ((dname_len = parse_dname(p, dname, &err)) == 0) {
+			parse_error(p, p->pos, "invalid NSEC: %s", err);
+			goto err;
+		}
+		if (!(rr = rr_new(dname_len + 34))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		rdata = rr->rdata;
+		memcpy(rdata, dname, dname_len);
+		rdata += dname_len;
+		memset(rdata, 0, 34);
+		while ((item = parse_item(p, NULL))) {
+			int type = type_from_string(item);
+			if (type > 255) {
+				parse_error(p, item, "invalid NSEC: unsupported record type %d", type);
+				goto err;
+			}
+			rdata[2 + type / 8] |= 0x80 >> type % 8;
+			if (type / 8 + 1 > rdata[1])
+				rdata[1] = type / 8 + 1;
+		}
+		if (p->err)
+			goto err;
+		rr->rdata_len -= 32 - rdata[1];
+		break;
+	case TYPE_TLSA: {
+		int usage = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid TLSA: usage: %s", err);
+			goto err;
+		}
+		int selector = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid TLSA: selector: %s", err);
+			goto err;
+		}
+		int match = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid TLSA: match: %s", err);
+			goto err;
+		}
+		while ((item = parse_item(p, &item_len))) {
+			if (!(new_buf = realloc(buf, buf_len + item_len + 1))) {
+				parse_error(p, NULL, "%s", strerror(errno));
+				goto err;
+			}
+			buf = new_buf;
+			memcpy(buf + buf_len, item, item_len);
+			buf_len += item_len;
+		}
+		if (p->err)
+			goto err;
+		if (buf_len == 0) {
+			parse_error(p, p->pos, "invalid TLSA: expected certificate association data");
+			goto err;
+		}
+		buf[buf_len] = '\0';
+		if (!(rr = rr_new(3 + buf_len / 2))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		rr->rdata[0] = usage;
+		rr->rdata[1] = selector;
+		rr->rdata[2] = match;
+		rr->rdata_len = 3 + base16_decode(rr->rdata + 3, buf);
+		break;
+	}
+	default:
+		parse_error(p, p->pos, "unsupported record type '%s'", type_to_string(type));
+	}
+	memcpy(rr->name, p->input->domain, p->input->domain_len);
+	rr->name_len = p->input->domain_len;
+	rr->type = type;
+	rr->class = p->class = class ? class : p->class;
+	rr->ttl = p->ttl = ttl ? ttl : p->ttl;
+	if (next_item(p) != 0) {
+		parse_error(p, p->pos, "unexpected item after record");
+		goto err;
+	}
+	free(buf);
+	return rr;
+
+err:
+	free(rr);
+	free(buf);
+	return NULL;
+}
+
+/* canonical ordering of domain names */
 static int
 rr_compare(const void *p1, const void *p2)
 {
 	const struct rr *rr1 = *(const struct rr **)p1, *rr2 = *(const struct rr **)p2;
-	int r;
 
-	if ((r = dname_compare(rr1->name, rr2->name)))
-		return r;
+	int ret = dname_compare(rr1->name, rr2->name);
+	if ((ret = dname_compare(rr1->name, rr2->name)))
+		return ret;
 	/* sort SOA before other record types so that it is always first in the zone */
 	if (rr1->type != rr2->type)
 		return rr1->type == TYPE_SOA ? -1 : rr2->type == TYPE_SOA ? 1 : rr1->type - rr2->type;
 	if (rr1->class != rr2->class)
 		return rr1->class - rr2->class;
 	size_t len = rr1->rdata_len < rr2->rdata_len ? rr1->rdata_len : rr2->rdata_len;
-	if ((r = memcmp(rr1->rdata, rr2->rdata, len)) != 0 || rr1->rdata_len == rr2->rdata_len)
-		return r;
+	if ((ret = memcmp(rr1->rdata, rr2->rdata, len)) != 0 || rr1->rdata_len == rr2->rdata_len)
+		return ret;
 	return len == rr1->rdata_len ? -1 : 1;
 }
 
-static void
+static int
 zone_add(struct zone *z, struct rr *rr)
 {
 	struct rr **rrs;
 
 	if (!(z->rr_len & (z->rr_len - 1))) {
 		if (!(rrs = realloc(z->rr, (z->rr_len ? z->rr_len * 2 : 1) * sizeof(rr))))
-			err(1, "realloc");
+			return -1;
 		z->rr = rrs;
 	}
 	z->rr[z->rr_len++] = rr;
+	return 0;
 }
 
-static struct rr *
-rr_new(unsigned char *name, size_t name_len, int type, int class, unsigned long ttl, size_t rdata_len)
+int
+zone_parse(struct zone *z, const char *name, char *errbuf, size_t errlen)
 {
+	struct parser p;
 	struct rr *rr;
 
-	if (!(rr = malloc(sizeof(*rr) + rdata_len)))
-		err(1, "malloc");
-	memcpy(rr->name, name, name_len);
-	rr->name_len = name_len;
-	rr->type = type;
-	rr->class = class;
-	rr->ttl = ttl;
-	rr->rdata_len = rdata_len;
-	return rr;
-}
-
-struct zone *
-zone_new_from_file(const char *path, FILE *file)
-{
-	struct zone *z;
-	char *buf = NULL;
-	size_t len = 0;
-
-	if (!(z = malloc(sizeof(*z))))
-		err(1, "malloc");
 	z->rr = NULL;
 	z->rr_len = 0;
-	for (;;) {
-		ssize_t n;
-		if ((n = getline(&buf, &len, file)) < 0) {
-			if (ferror(file))
-				err(1, "read %s", path);
-			break;
+	if (parse_init(&p, name, errbuf, errlen) != 0)
+		goto err;
+	while ((rr = parse_rr(&p))) {
+		if ((rr->type == TYPE_SOA) != (z->rr_len == 0)) {
+			snprintf(errbuf, errlen, "exactly one SOA record required at start of zone");
+			goto err;
 		}
-		if (buf[n - 1] == '\n')
-			buf[n - 1] = '\0';
-		char *tok;
-		if (!(tok = strtok(buf, " \t")))
-			continue;
-		unsigned char name[DNAME_MAX];
-		size_t name_len = dname_parse(tok, name, NULL, 0);
-		if (name_len == 0)
-			errx(1, "invalid RR: invalid name");
-		if (!(tok = strtok(NULL, " \t")))
-			errx(1, "invalid RR: expected TTL");
-		unsigned long ttl = strtoul(tok, &tok, 10);
-		if (*tok)
-			errx(1, "invalid RR: invalid TTL");
-		if (!(tok = strtok(NULL, " \t")))
-			errx(1, "invalid RR: expected class");
-		int class = class_from_string(tok);
-		if (!(tok = strtok(NULL, " \t")))
-			errx(1, "invalid RR: expected type");
-		int type = type_from_string(tok);
-		struct rr *rr;
-		if ((type == TYPE_SOA) != (z->rr_len == 0))
-			errx(1, "exactly one SOA record must be present at start of zone");
-		switch (type) {
-		unsigned char *p;
-		case TYPE_A:
-			rr = rr_new(name, name_len, type, class, ttl, 4);
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid A: expected IP address");
-			if (inet_pton(AF_INET, tok, rr->rdata) != 1)
-				err(1, "invalid A: inet_pton");
-			break;
-		case TYPE_NS:
-		case TYPE_CNAME: {
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid %s: expected name server", type_to_string(type));
-			unsigned char dname[DNAME_MAX];
-			size_t len = dname_parse(tok, dname, NULL, 0);
-			if (len == 0)
-				errx(1, "invalid %s: invalid name server", type_to_string(type));
-			rr = rr_new(name, name_len, type, class, ttl, len);
-			memcpy(rr->rdata, dname, len);
-			break;
+		if (rr->type == TYPE_SOA) {
+			uint32_t minimum_ttl;
+			memcpy(&minimum_ttl, rr->rdata + (rr->rdata_len - 4), 4);
+			z->minimum_ttl = ntohl(minimum_ttl);
 		}
-		case TYPE_SOA: {
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected name server");
-			unsigned char mname[DNAME_MAX];
-			size_t mname_len = dname_parse(tok, mname, NULL, 0);
-			if (mname_len == 0)
-				errx(1, "invalid SOA: invalid name server");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected owner mailbox");
-			unsigned char rname[DNAME_MAX];
-			size_t rname_len = dname_parse(tok, rname, NULL, 0);
-			if (rname_len == 0)
-				errx(1, "invalid SOA: invalid owner mailbax");
-
-			rr = rr_new(name, name_len, TYPE_SOA, class, ttl, mname_len + rname_len + 20);
-			p = rr->rdata;
-			memcpy(p, mname, mname_len);
-			p += mname_len;
-			memcpy(p, rname, rname_len);
-			p += rname_len;
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected serial number");
-			memcpy(p, &(uint32_t){htonl(strtoul(tok, &tok, 10))}, 4);
-			if (*tok)
-				errx(1, "invalid SOA: invalid serial number");
-			p += 4;
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected refresh interval");
-			memcpy(p, &(uint32_t){htonl(strtoul(tok, &tok, 10))}, 4);
-			if (*tok)
-				errx(1, "invalid SOA: invalid refresh interval");
-			p += 4;
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected retry interval");
-			memcpy(p, &(uint32_t){htonl(strtoul(tok, &tok, 10))}, 4);
-			if (*tok)
-				errx(1, "invalid SOA: invalid retry interval");
-			p += 4;
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected expire interval");
-			memcpy(p, &(uint32_t){htonl(strtoul(tok, &tok, 10))}, 4);
-			if (*tok)
-				errx(1, "invalid SOA: invalid expire interval");
-			p += 4;
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SOA: expected minimum TTL");
-			z->soa.minimum_ttl = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SOA: invalid minimum TTL");
-			memcpy(p, &(uint32_t){htonl(z->soa.minimum_ttl)}, 4);
-			break;
+		if (zone_add(z, rr) != 0) {
+			snprintf(errbuf, errlen, "%s", strerror(errno));
+			goto err;
 		}
-		case TYPE_MX: {
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid MX: expected priority");
-			unsigned priority = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid MX: invalid priority");
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid MX: expected domain name");
-			unsigned char dname[DNAME_MAX];
-			size_t dname_len = dname_parse(tok, dname, NULL, 0);
-			if (dname_len == 0)
-				errx(1, "invalid MX: invalid domain name");
-			rr = rr_new(name, name_len, type, class, ttl, 2 + dname_len);
-			memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
-			memcpy(rr->rdata + 2, dname, dname_len);
-			break;
-		}
-		case TYPE_AAAA:
-			rr = rr_new(name, name_len, type, class, ttl, 16);
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid AAAA: expected IP address");
-			if (inet_pton(AF_INET6, tok, rr->rdata) != 1)
-				err(1, "invalid AAAA: inet_pton");
-			break;
-		case TYPE_SRV: {
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SRV: expected priority");
-			unsigned priority = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SRV: invalid priority");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SRV: expected weight");
-			unsigned weight = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SRV: invalid weight");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SRV: expected port");
-			unsigned port = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SRV: invalid port");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid SRV: expected domain name");
-			unsigned char dname[DNAME_MAX];
-			size_t dname_len = dname_parse(tok, dname, NULL, 0);
-			if (dname_len == 0)
-				errx(1, "invalid SRV: invalid domain name");
-			rr = rr_new(name, name_len, type, class, ttl, 6 + dname_len);
-			memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
-			memcpy(rr->rdata + 2, &(uint16_t){htons(weight)}, 2);
-			memcpy(rr->rdata + 4, &(uint16_t){htons(port)}, 2);
-			memcpy(rr->rdata + 6, dname, dname_len);
-			break;
-		}
-		case TYPE_DNSKEY:
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid DNSKEY: expected flags");
-			unsigned flags = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid DNSKEY: invalid flags");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid DNSKEY: expected protocol");
-			int protocol = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid DNSKEY: invalid protocol");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid DNSKEY: expected algorithm");
-			int algorithm = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid DNSKEY: invalid protocol");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid DNSKEY: expected public key");
-			rr = rr_new(name, name_len, type, class, ttl, 4 + strlen(tok) * 3 / 4);
-			memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
-			rr->rdata[2] = protocol;
-			rr->rdata[3] = algorithm;
-			rr->rdata_len = 4 + base64_decode(rr->rdata + 4, tok);
-			break;
-		case TYPE_NSEC: {
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid NSEC: expected next domain name");
-			unsigned char dname[DNAME_MAX];
-			size_t dname_len = dname_parse(tok, dname, NULL, 0);
-			if (dname_len == 0)
-				errx(1, "invalid NSEC: invalid next domain name");
-			rr = rr_new(name, name_len, type, class, ttl, dname_len + 34);
-			p = rr->rdata;
-			memcpy(p, dname, dname_len);
-			p += dname_len;
-			memset(p, 0, 34);
-			while ((tok = strtok(NULL, " \t"))) {
-				if ((type = type_from_string(tok)) > 255)
-					errx(1, "unsupported record type %s", tok);
-				p[2 + type / 8] |= 0x80 >> type % 8;
-				if (type / 8 + 1 > p[1])
-					p[1] = type / 8 + 1;
-			}
-			rr->rdata_len -= 32 - p[1];
-			break;
-		}
-		case TYPE_TLSA:
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid TLSA: expected usage");
-			int usage = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SOA: invalid refresh interval");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid TLSA: expected selector");
-			int selector = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SOA: invalid selector");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid TLSA: expected match type");
-			int match = strtoul(tok, &tok, 10);
-			if (*tok)
-				errx(1, "invalid SOA: invalid match type");
-
-			if (!(tok = strtok(NULL, " \t")))
-				errx(1, "invalid TLSA: expected certificate association data");
-			rr = rr_new(name, name_len, type, class, ttl, 3 + strlen(tok) / 2);
-			rr->rdata[0] = usage;
-			rr->rdata[1] = selector;
-			rr->rdata[2] = match;
-			rr->rdata_len = 3 + base16_decode(rr->rdata + 3, tok);
-			break;
-		default:
-			errx(1, "unsupported record type %s", type_to_string(type));
-		}
-		zone_add(z, rr);
 	}
-	free(buf);
+	if (p.err)
+		goto err;
 	qsort(z->rr, z->rr_len, sizeof(z->rr[0]), rr_compare);
-
-	return z;
+	return 0;
+err:
+	while (p.input) {
+		struct input *next = p.input->next;
+		fclose(p.input->file);
+		free(p.input->name);
+		free(p.input);
+		p.input = next;
+	}
+	free(p.buf);
+	return -1;
 }
