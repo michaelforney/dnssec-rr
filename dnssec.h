@@ -9,6 +9,7 @@ enum {
 	TYPE_AAAA   = 28,
 	TYPE_SRV    = 33,
 	TYPE_DS     = 43,
+	TYPE_SSHFP  = 44,
 	TYPE_RRSIG  = 46,
 	TYPE_NSEC   = 47,
 	TYPE_DNSKEY = 48,

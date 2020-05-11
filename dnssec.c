@@ -27,6 +27,7 @@ static const char *type_names[] = {
 	[TYPE_AAAA]   = "AAAA",
 	[TYPE_SRV]    = "SRV",
 	[TYPE_DS]     = "DS",
+	[TYPE_SSHFP]  = "SSHFP",
 	[TYPE_RRSIG]  = "RRSIG",
 	[TYPE_NSEC]   = "NSEC",
 	[TYPE_DNSKEY] = "DNSKEY",

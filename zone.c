@@ -533,6 +533,36 @@ parse_rr(struct parser *p)
 		memcpy(rr->rdata + 6, dname, dname_len);
 		break;
 	}
+	/* RFC 4255 */
+	case TYPE_SSHFP: {
+		int algorithm = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SSHFP: algorithm: %s", err);
+			goto err;
+		}
+		int fptype = parse_int(p, &err);
+		if (err) {
+			parse_error(p, p->pos, "invalid SSHFP: fingerprint type: %s", err);
+			goto err;
+		}
+		size_t len = parse_data(p);
+		if (len == 0) {
+			parse_error(p, p->pos, "invalid SSHFP: expected fingerprint data");
+			goto err;
+		}
+		if (len % 2) {
+			parse_error(p, p->pos, "invalid SSHFP: fingerprint data must have even length");
+			goto err;
+		}
+		if (!(rr = rr_new(2 + len / 2))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		rr->rdata[0] = algorithm;
+		rr->rdata[1] = fptype;
+		rr->rdata_len = 2 + base16_decode(rr->rdata + 2, p->tmp);
+		break;
+	}
 	/* RFC 4034 */
 	case TYPE_DNSKEY: {
 		unsigned flags = parse_int(p, &err);
