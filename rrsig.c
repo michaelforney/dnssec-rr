@@ -10,13 +10,15 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: rrsig [-kz] [-s start] [-e end] [algorithm:]keyfile\n");
+	fprintf(stderr, "usage: rrsig [-kz] [-s start] [-e end] [algorithm:]keyfile [zonefile]\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
+	const char *name = "<stdin>";
+	FILE *file = stdin;
 	int kflag = 0, zflag = 0, c;
 	unsigned long start_time = 0, end_time = 0;
 
@@ -42,8 +44,13 @@ main(int argc, char *argv[])
 	}
 	argc -= optind;
 	argv += optind;
-	if (argc != 1)
+	if (argc != 1 && argc != 2)
 		usage();
+	if (argc == 2) {
+		name = argv[1];
+		if (!(file = fopen(name, "r")))
+			err(1, "open %s", name);
+	}
 
 	if (!kflag && !zflag) {
 		kflag = 1;
@@ -54,7 +61,7 @@ main(int argc, char *argv[])
 	if (!end_time)
 		end_time = start_time + 30 * 86400;
 
-	struct zone *z = zone_new_from_file("<stdin>", stdin);
+	struct zone *z = zone_new_from_file(name, file);
 	struct key *sk = key_new_from_file(argv[0]);
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | (kflag ? DNSKEY_SEP : 0), sk);
 
