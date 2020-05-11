@@ -254,6 +254,7 @@ parse_rr(struct parser *p)
 	int type, class;
 	unsigned long ttl;
 
+again:
 	for (;;) {
 		if (next_line(p) != 0)
 			goto err;
@@ -564,6 +565,13 @@ parse_rr(struct parser *p)
 		break;
 	}
 	/* RFC 4034 */
+	case TYPE_RRSIG:
+		/* skip */
+		while (next_item(p) == 1)
+			++p->pos;
+		if (p->err)
+			goto err;
+		goto again;
 	case TYPE_DNSKEY: {
 		unsigned flags = parse_int(p, &err);
 		if (err) {
