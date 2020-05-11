@@ -65,7 +65,7 @@ enum {
 	DNAME_MAX = 255,
 };
 
-size_t dname_parse(const char *, unsigned char[static DNAME_MAX], const unsigned char *, size_t);
+size_t dname_parse(const char *, char **, unsigned char[static DNAME_MAX], const unsigned char *, size_t);
 int dname_compare(const unsigned char *, const unsigned char *);
 int dname_print(const unsigned char *);
 int dname_labels(const unsigned char *);

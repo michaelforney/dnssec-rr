@@ -17,10 +17,10 @@ main(int argc, char *argv[])
 {
 	int digest = DIGEST_SHA256, class = CLASS_IN, c;
 	unsigned long ttl = 86400;
+	char *end;
 
 	while ((c = getopt(argc, argv, "d:t:c:")) != -1) {
 		switch (c) {
-		char *end;
 		case 'd':
 			digest = digest_from_string(optarg);
 			break;
@@ -54,8 +54,8 @@ main(int argc, char *argv[])
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | DNSKEY_SEP, sk);
 
 	unsigned char dname[DNAME_MAX];
-	size_t dname_len = dname_parse(argv[0], dname, NULL, 0);
-	if (dname_len == 0)
+	size_t dname_len = dname_parse(argv[0], &end, dname, NULL, 0);
+	if (dname_len == 0 || *end)
 		errx(1, "invalid domain name '%s'", argv[0]);
 
 	hc.vtable->init(&hc.vtable);

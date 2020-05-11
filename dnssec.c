@@ -106,7 +106,7 @@ digest_from_string(const char *s)
 }
 
 size_t
-dname_parse(const char *s, unsigned char dn[static DNAME_MAX], const unsigned char *origin, size_t origin_len)
+dname_parse(const char *s, char **end, unsigned char dn[static DNAME_MAX], const unsigned char *origin, size_t origin_len)
 {
 	size_t len = 0, label_len;
 	int rel;
@@ -181,6 +181,8 @@ out:
 	} else {
 		dn[len++] = 0;
 	}
+	if (end)
+		*end = (char *)s;
 	return len;
 }
 
