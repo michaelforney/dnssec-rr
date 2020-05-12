@@ -261,7 +261,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 	switch (sk->algorithm) {
 	case ALGORITHM_RSASHA1:
 	case ALGORITHM_RSASHA256:
-	case ALGORITHM_RSASHA512:;
+	case ALGORITHM_RSASHA512: {
 		uint32_t e = br_rsa_compute_pubexp_get_default()(&sk->rsa);
 		if (!e)
 			errx(1, "failed to compute public exponent of RSA key");
@@ -277,6 +277,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 		memcpy(k->data + 1, &(uint32_t){htonl(e)}, k->data[0]);
 		br_rsa_compute_modulus_get_default()(k->data + 1 + k->data[0], &sk->rsa);
 		break;
+	}
 	case ALGORITHM_ECDSAP256SHA256:
 		if (br_ec_compute_pub(br_ec_get_default(), &pk, buf, &sk->ec) != 65)
 			errx(1, "unexpected public key size");
