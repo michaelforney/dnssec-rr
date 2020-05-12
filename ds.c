@@ -16,7 +16,7 @@ int
 main(int argc, char *argv[])
 {
 	int digest = DIGEST_SHA256, class = CLASS_IN, c;
-	unsigned long ttl = 86400;
+	unsigned long ttl = 0;
 	char *end;
 
 	while ((c = getopt(argc, argv, "d:t:c:")) != -1) {
@@ -68,8 +68,10 @@ main(int argc, char *argv[])
 	size_t hash_len = hc.vtable->desc >> BR_HASHDESC_OUT_OFF & BR_HASHDESC_OUT_MASK;
 	hc.vtable->out(&hc.vtable, hash);
 
-	printf("%s\t%lu\t%s\tDS\t%u %d %d ",
-	       argv[0], ttl, class_to_string(class), dnskey_tag(pk), pk->algorithm, digest);
+	fputs(argv[0], stdout);
+	if (ttl)
+		printf("\t%lu", ttl);
+	printf("\t%s\tDS\t%u %d %d ", class_to_string(class), dnskey_tag(pk), pk->algorithm, digest);
 	for (size_t i = 0; i < hash_len; ++i)
 		printf("%02x", hash[i]);
 	putchar('\n');

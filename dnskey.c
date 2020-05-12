@@ -15,7 +15,7 @@ int
 main(int argc, char *argv[])
 {
 	int class = CLASS_IN, flags = DNSKEY_ZONE, c;
-	unsigned long ttl = 86400;
+	unsigned long ttl = 0;
 
 	while ((c = getopt(argc, argv, "kt:c:")) != -1) {
 		switch (c) {
@@ -42,7 +42,10 @@ main(int argc, char *argv[])
 
 	struct key *sk = key_new_from_file(argv[1]);
 	struct dnskey *pk = dnskey_new(flags, sk);
-	printf("%s\t%lu\t%s\tDNSKEY\t%u %d %d ", argv[0], ttl, class_to_string(class), pk->flags, pk->protocol, pk->algorithm);
+	fputs(argv[0], stdout);
+	if (ttl)
+		printf("\t%lu", ttl);
+	printf("\t%s\tDNSKEY\t%u %d %d ", class_to_string(class), pk->flags, pk->protocol, pk->algorithm);
 	for (size_t i = 0; i < pk->data_len; i += 300) {
 		char data[401];
 		base64_encode(data, pk->data + i, i + 300 < pk->data_len ? 300 : pk->data_len - i);
