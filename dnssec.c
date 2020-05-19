@@ -157,7 +157,7 @@ dname_parse(const char *s, char **end, unsigned char dn[static DNAME_MAX], const
 					++s;
 				if (len + label_len == DNAME_MAX - 2 || label_len == LABEL_MAX)
 					return 0;
-				dn[len + 1 + label_len++] = *s;
+				dn[len + 1 + label_len++] = tolower(*s);
 			}
 			++s;
 			break;
@@ -176,7 +176,7 @@ dname_parse(const char *s, char **end, unsigned char dn[static DNAME_MAX], const
 				}
 				if (len + label_len == DNAME_MAX - 2 || label_len == LABEL_MAX)
 					return 0;
-				dn[len + 1 + label_len++] = c;
+				dn[len + 1 + label_len++] = tolower(c);
 			}
 		}
 		if (label_len == 0)
