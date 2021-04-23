@@ -7,9 +7,9 @@ base64_encode(char *dst, const unsigned char *src, size_t len)
 	static const char b64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 	for (size_t i = 0; i < len; i += 3, dst += 4) {
-		unsigned long x = src[i] << 16;
+		unsigned long x = (unsigned long)src[i] << 16;
 		dst[3] = i + 2 >= len ? '=' : b64[(x |= src[i + 2]) & 0x3f];
-		dst[2] = i + 1 >= len ? '=' : b64[(x |= src[i + 1] << 8) >> 6 & 0x3f];
+		dst[2] = i + 1 >= len ? '=' : b64[(x |= (unsigned long)src[i + 1] << 8) >> 6 & 0x3f];
 		dst[1] = b64[x >> 12 & 0x3f];
 		dst[0] = b64[x >> 18];
 	}
@@ -30,7 +30,7 @@ base64_decode(unsigned char *dst, const char *src)
 	};
 	unsigned long x;
 	size_t i, len;
-	int c, pad = 0;
+	unsigned c, pad = 0;
 
 	for (i = 0, x = 0, len = 0; src[i]; ++i) {
 		c = (unsigned char)src[i];
