@@ -246,6 +246,8 @@ dname_labels(const unsigned char *dn)
 {
 	int labels = 0;
 
+	if (dn[0] == 1 && dn[1] == '*')
+		dn += 2;
 	for (; *dn; dn += 1 + *dn)
 		++labels;
 	return labels;
