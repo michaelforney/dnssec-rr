@@ -40,7 +40,7 @@ base64_decode(unsigned char *dst, const char *src)
 	unsigned c, pad = 0;
 
 	for (i = 0, x = 0, len = 0; src[i]; ++i) {
-		c = (unsigned char)src[i];
+		c = src[i];
 		if (c == '=' && (!src[i + 1] || (src[i + 1] == '=' && !src[i + 2])))
 			++pad;
 		else if (c >= sizeof(b64) || (!b64[c] && c != 'A'))
