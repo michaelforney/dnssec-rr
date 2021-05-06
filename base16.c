@@ -1,4 +1,3 @@
-#include <err.h>
 #include "dnssec.h"
 
 static int
@@ -14,18 +13,23 @@ base16_value(int c)
 	case 'e': case 'E': return 14;
 	case 'f': case 'F': return 15;
 	}
-	errx(1, "invalid base16 character '%c'", c);
+	return -1;
 }
 
 size_t
 base16_decode(unsigned char *dst, const char *src)
 {
 	unsigned char *p = dst;
+	int n1, n2;
 
 	for (size_t i = 0; src[i]; i += 2) {
 		if (!src[i + 1])
-			errx(1, "truncated base16 string");
-		*p++ = base16_value(src[i]) << 4 | base16_value(src[i + 1]);
+			return 0;
+		n1 = base16_value(src[i]);
+		n2 = base16_value(src[i + 1]);
+		if (n1 == -1 || n2 == -1)
+			return 0;
+		*p++ = n1 << 4 | n2;
 	}
 	return p - dst;
 }

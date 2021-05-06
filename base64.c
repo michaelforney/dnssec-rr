@@ -1,4 +1,3 @@
-#include <err.h>
 #include "dnssec.h"
 
 void
@@ -45,7 +44,7 @@ base64_decode(unsigned char *dst, const char *src)
 		if (c == '=' && (!src[i + 1] || (src[i + 1] == '=' && !src[i + 2])))
 			++pad;
 		else if (c >= sizeof(b64) || (!b64[c] && c != 'A'))
-			errx(1, "invalid base64 character '%c'", c);
+			return 0;
 		x = x << 6 | b64[c];
 		if (i % 4 == 3) {
 			dst[len + 2] = x & 0xff; x >>= 8;
@@ -55,6 +54,6 @@ base64_decode(unsigned char *dst, const char *src)
 		}
 	}
 	if (i % 4 != 0)
-		errx(1, "truncated base64");
+		return 0;
 	return len - pad;
 }

@@ -373,7 +373,8 @@ again:
 			parse_error(p, p->pos, "invalid generic RDATA: data length differs from specified length");
 		if (p->err)
 			goto err;
-		base16_decode(rr->rdata, p->tmp);
+		if (base16_decode(rr->rdata, p->tmp) == 0)
+			parse_error(p, p->pos, "invalid generic RDATA: invalid hex string");
 	} else switch (type) {
 	case TYPE_A:
 		if (!(rr = rr_new(4))) {
@@ -561,7 +562,12 @@ again:
 		}
 		rr->rdata[0] = algorithm;
 		rr->rdata[1] = fptype;
-		rr->rdata_len = 2 + base16_decode(rr->rdata + 2, p->tmp);
+		len = base16_decode(rr->rdata + 2, p->tmp);
+		if (len == 0) {
+			parse_error(p, p->pos, "invalid SSHFP: invalid fingerprint hex string");
+			goto err;
+		}
+		rr->rdata_len = 2 + len;
 		break;
 	}
 	/* RFC 4034 */
@@ -599,7 +605,12 @@ again:
 		memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
 		rr->rdata[2] = protocol;
 		rr->rdata[3] = algorithm;
-		rr->rdata_len = 4 + base64_decode(rr->rdata + 4, p->tmp);
+		len = base64_decode(rr->rdata + 4, p->tmp);
+		if (len == 0) {
+			parse_error(p, p->pos, "invalid DNSKEY: invalid public key base64");
+			goto err;
+		}
+		rr->rdata_len = 4 + len;
 		break;
 	}
 	case TYPE_NSEC:
@@ -662,7 +673,12 @@ again:
 		rr->rdata[0] = usage;
 		rr->rdata[1] = selector;
 		rr->rdata[2] = match;
-		rr->rdata_len = 3 + base16_decode(rr->rdata + 3, p->tmp);
+		len = base16_decode(rr->rdata + 3, p->tmp);
+		if (len == 0) {
+			parse_error(p, p->pos, "invalid TLS: invalid certificate association data hex string");
+			goto err;
+		}
+		rr->rdata_len = 3 + len;
 		break;
 	}
 	default:
