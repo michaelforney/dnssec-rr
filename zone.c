@@ -663,7 +663,7 @@ again:
 			goto err;
 		}
 		if (len % 2) {
-			parse_error(p, p->pos, "invalid TLS: certificate association data must have even length");
+			parse_error(p, p->pos, "invalid TLSA: certificate association data must have even length");
 			goto err;
 		}
 		if (!(rr = rr_new(3 + len / 2))) {
