@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unistd.h>
 #include <arpa/inet.h>
 #include <err.h>
 #include "dnssec.h"
+#include "arg.h"
 
 static void
 usage(void)
@@ -17,31 +17,27 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	int kflag = 0, zflag = 0, c;
+	int kflag = 0, zflag = 0;
 	unsigned long start_time = 0, end_time = 0;
 
-	while ((c = getopt(argc, argv, "s:e:kz")) != -1) {
-		switch (c) {
+	ARGBEGIN {
 		char *end;
-		case 's':
-			start_time = strtoul(optarg, &end, 0);
-			if (*end)
-				usage();
-			break;
-		case 'e':
-			break;
-		case 'k':
-			kflag = 1;
-			break;
-		case 'z':
-			zflag = 1;
-			break;
-		default:
+	case 's':
+		start_time = strtoul(EARGF(usage()), &end, 0);
+		if (*end)
 			usage();
-		}
-	}
-	argc -= optind;
-	argv += optind;
+		break;
+	case 'e':
+		break;
+	case 'k':
+		kflag = 1;
+		break;
+	case 'z':
+		zflag = 1;
+		break;
+	default:
+		usage();
+	} ARGEND
 	if (argc != 1 && argc != 2)
 		usage();
 

@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <err.h>
 #include "dnssec.h"
+#include "arg.h"
 
 static void
 usage(void)
@@ -14,29 +14,25 @@ usage(void)
 int
 main(int argc, char *argv[])
 {
-	int class = CLASS_IN, flags = DNSKEY_ZONE, c;
+	int class = CLASS_IN, flags = DNSKEY_ZONE;
 	unsigned long ttl = 0;
+	char *end;
 
-	while ((c = getopt(argc, argv, "kt:c:")) != -1) {
-		switch (c) {
-		char *end;
-		case 'k':
-			flags |= DNSKEY_SEP;
-			break;
-		case 't':
-			ttl = strtoul(optarg, &end, 10);
-			if (*end)
-				errx(1, "invalid TTL");
-			break;
-		case 'c':
-			class = class_from_string(optarg);
-			break;
-		default:
-			usage();
-		}
-	}
-	argc -= optind;
-	argv += optind;
+	ARGBEGIN {
+	case 'k':
+		flags |= DNSKEY_SEP;
+		break;
+	case 't':
+		ttl = strtoul(EARGF(usage()), &end, 10);
+		if (*end)
+			errx(1, "invalid TTL");
+		break;
+	case 'c':
+		class = class_from_string(EARGF(usage()));
+		break;
+	default:
+		usage();
+	} ARGEND
 	if (argc != 2)
 		usage();
 
