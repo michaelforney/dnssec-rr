@@ -28,6 +28,9 @@ main(int argc, char *argv[])
 			usage();
 		break;
 	case 'e':
+		end_time = strtoul(EARGF(usage()), &end, 0);
+		if (*end)
+			usage();
 		break;
 	case 'k':
 		kflag = 1;
