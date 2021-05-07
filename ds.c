@@ -8,7 +8,7 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: dsfromkey [-d digest] [-t ttl] [-c class] domain [algorithm:]keyfile\n");
+	fprintf(stderr, "usage: ds [-d digest] [-t ttl] [-c class] domain [algorithm:]keyfile\n");
 	exit(2);
 }
 
