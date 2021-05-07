@@ -235,7 +235,7 @@ main(int argc, char *argv[])
 	const br_x509_pkey *pk = NULL;
 	char buf[8192], *pos, *end;
 	unsigned char hash[64], *data;
-	size_t len = 0, n, data_len;
+	size_t len = 0, n, data_len = 0;
 	int done = 0, found = 0, errcode;
 
 	ARGBEGIN {
