@@ -1,9 +1,11 @@
-.PHONY: all clean
+.PHONY: all install clean
 
-CFLAGS += -Wall -Wpedantic
-LDLIBS = -lbearssl
+-include config.mk
 
-all: ds dnskey nsec rrsig tlsa
+PREFIX?=/usr/local
+BINDIR?=$(PREFIX)/bin
+CFLAGS+=-Wall -Wpedantic
+LDLIBS?=-lbearssl
 
 COMMON_OBJ=\
 	base16.o\
@@ -11,6 +13,9 @@ COMMON_OBJ=\
 	dnssec.o\
 	key.o\
 	zone.o
+TOOLS=ds dnskey nsec rrsig tlsa
+
+all: $(TOOLS)
 
 libcommon.a: $(COMMON_OBJ)
 	$(AR) -rc $@ $(COMMON_OBJ)
@@ -32,5 +37,9 @@ tlsa: tlsa.o libcommon.a
 
 ds.o dnskey.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
 
+install: $(TOOLS)
+	mkdir -p $(DESTDIR)$(BINDIR)
+	cp $(TOOLS) $(DESTDIR)$(BINDIR)/
+
 clean:
-	rm -f ds ds.o dnskey dnskey.o nsec nsec.o rrsig rrsig.o tlsa tlsa.o libcommon.a $(COMMON_OBJ)
+	rm -f $(TOOLS) $(TOOLS:%=%.o) libcommon.a $(COMMON_OBJ)
