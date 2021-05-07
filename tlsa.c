@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <strings.h>
 #include <err.h>
 #include "dnssec.h"
 #include "arg.h"
@@ -179,10 +180,10 @@ encode_pkey(const br_x509_pkey *pk, unsigned char *buf)
 }
 
 static const char *usage_names[] = {
-	"PKIX-TA",
-	"PKIX-EE",
-	"DANE-TA",
-	"DANE-EE",
+	"pkix-ta",
+	"pkix-ee",
+	"dane-ta",
+	"dane-ee",
 };
 
 static const char *selector_names[] = {
@@ -192,15 +193,15 @@ static const char *selector_names[] = {
 
 static const char *match_names[] = {
 	"exact",
-	"SHA256",
-	"SHA512",
+	"sha256",
+	"sha512",
 };
 
 static int
 from_string(const char *s, const char *desc, const char *const names[], size_t names_len)
 {
 	for (size_t i = 0; i < names_len; ++i) {
-		if (strcmp(names[i], s) == 0 || (s[0] == '0' + i && s[1] == 0))
+		if (strcasecmp(names[i], s) == 0 || (s[0] == '0' + i && s[1] == 0))
 			return i;
 	}
 	errx(1, "unknown %s '%s'", desc, s);
