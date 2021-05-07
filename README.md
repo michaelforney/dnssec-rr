@@ -112,4 +112,13 @@ abc.example.com.        86400   IN      RRSIG   A 13 3 86400 20200510061143 2020
 def.example.com.        86400   IN      RRSIG   A 13 3 86400 20200510061143 20200410061143 28335 example.com. Izl/hwxnmwtmYTDVXMJIhsCLQGM2Icdz54Ap5akxHrhooAsxG8rHz4HikAureBSTVm+gO3hZ2+Cx2w7sIBr4Og==
 ```
 
+## tlsa
+
+This tool generates a DANE `TLSA` record for a certificate.
+
+```
+$ tlsa example.com. cert.pem
+example.com.    IN      TLSA    3 1 1 6584317c0720726df738582b2f5d440b8162baecd001e07fdf3d148d3f521fad
+```
+
 [BearSSL]: https://bearssl.org
