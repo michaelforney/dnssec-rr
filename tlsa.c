@@ -31,7 +31,7 @@ static int selector = SELECTOR_PUBKEY;
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: dsfromkey [-C] [-m match] [-u usage] [-t ttl] [-c class] domain certfile\n");
+	fprintf(stderr, "usage: tlsa [-u usage] [-s selector] [-m match] [-t ttl] [-c class] domain certfile\n");
 	exit(2);
 }
 
