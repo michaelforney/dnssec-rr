@@ -3,19 +3,22 @@
 #include <string.h>
 #include <err.h>
 #include "dnssec.h"
+#include "arg.h"
 
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: nsec [zone]\n");
+	fprintf(stderr, "usage: nsec [zonefile]\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	if (argc > 0)
-		--argc, ++argv;
+	ARGBEGIN {
+	default:
+		usage();
+	} ARGEND
 	if (argc > 1)
 		usage();
 
