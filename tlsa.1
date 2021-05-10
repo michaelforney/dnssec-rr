@@ -1,0 +1,112 @@
+.Dd May 10, 2021
+.Dt TLSA 1
+.Os
+.Sh NAME
+.Nm tlsa
+.Nd generate DANE TLSA record
+.Sh SYNOPSIS
+.Nm tlsa
+.Op Fl u Ar usage
+.Op Fl s Ar selector
+.Op Fl m Ar match
+.Op Fl t Ar ttl
+.Op Fl c Ar class
+.Ar domain
+.Ar certfile
+.Sh DESCRIPTION
+.Nm
+writes a DANE TLSA record to standard output.
+.Pp
+The record is generated with the name
+.Ar domain
+using the certificate in
+.Ar certfile .
+.Pp
+A TLSA record specifies the TLS certificate validation policy for
+the server running on the port and transport protocol given in the
+name prefix.
+The prefix is formed by the prepending the decimal port number and
+protocol name to the domain name, each as their own label beginning
+with
+.Sq _ .
+For example, an HTTPS server running on www.example.com TCP port
+443 would use the name _443._tcp.www.example.com.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl u
+The usage type of the record, specifying how the TLS certificate
+should be validated.
+Possible values are:
+.Bl -tag -width "pkix-ta (0)"
+.It Cm pkix-ta (0)
+Standard PKIX certificate validation, except that the specified certificate
+.Em must
+match a certificate authority (CA) in the server's certificate chain.
+.It Cm pkix-ee (1)
+Standard PKIX certificate validation, except that the specified certificate
+.Em must
+match the end-entity (EE) in the server's certificate chain.
+.It Cm dane-ta (2)
+The certificate
+.Em must
+match a certificate authority (CA) in the server's certificate chain.
+The CA need not be part of the client's trusted CA set.
+.It Cm dane-ee (3)
+The certificate
+.Em must
+match the end-entity (EE) in the server's certificate chain.
+PKIX validation is skipped.
+.El
+.Pp
+The default is 
+.Cm dane-ee .
+.It Fl s
+The selector of the record, specifying which part of the TLS
+certificate should be matched against.
+Possible values are:
+.Bl -tag -width "pubkey (1)"
+.It Cm cert (0)
+Match the full Certificate.
+.It Cm pubkey (1)
+Match only the SubjectPublicKeyInfo substructure of the Certificate.
+.El
+.Pp
+The default is
+.Cm pubkey .
+.It Fl m
+The matching type of the record, specifying how the certificate
+association data is presented.
+Possible values are:
+.Bl -tag -width "sha256 (1)"
+.It Cm exact (0)
+The selected part of the certificate is presented in-full as the
+certificate association data.
+.It Cm sha256 (1)
+The SHA256 hash of the selected part of the certificate is used as
+the certificate association data.
+.It Cm sha512 (2)
+The SHA512 hash of the selected part of the certificate is used as
+the certificate association data.
+.El
+.Pp
+The default is
+.Cm sha256 .
+.It Fl t
+The TTL value of the record.
+If not specified, the TTL is omitted.
+.It Fl c
+The record class.
+Defaults to IN.
+.El
+.Sh EXAMPLES
+Generate a TLSA record for an HTTPS server running on example.com
+TCP port 443:
+.Bd -literal -offset indent
+$ tlsa _443._tcp.www.example.com. cert.pem
+_443._tcp.www.example.com.	IN	TLSA	3 1 1 8bd1da95272f7fa4ffb24137fc0ed03aae67e5c4d8b3c50734e1050a7920b922
+.Ed
+.Sh SEE ALSO
+.Xr dnskey 1 ,
+.Xr ds 1 ,
+.Xr nsec 1 ,
+.Xr rrsig 1

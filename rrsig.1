@@ -1,0 +1,67 @@
+.Dd May 10, 2021
+.Dt RRSIG 1
+.Os
+.Sh NAME
+.Nm rrsig
+.Nd generate RRSIG records for a zone
+.Sh SYNOPSIS
+.Nm rrsig
+.Op Fl kz
+.Op Fl s Ar start
+.Op Fl e Ar end
+.Ar keyfile
+.Op Ar zonefile
+.Sh DESCRIPTION
+.Nm
+signs the records in a zone and writes DNSSEC RRSIG records to standard output.
+.Pp
+The signatures are generated for the zone described in
+.Ar zonefile ,
+which must be in the format described by RFC 1035.
+.Pp
+An RRSIG record contains a signature for a set of DNS records
+(RRset), all with the same name and type.
+These records are returned along with the results of a query and
+the signatures can be verified with the public keys in the DNSKEY
+records for the domain.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl k
+Sign the DNSKEY records in the zone.
+The key in
+.Ar keyfile
+must have a DNSKEY record in the zone with the SEP flag set.
+.It Fl z
+Sign the non-DNSKEY records in the zone.
+The key in
+.Ar keyfile
+must have a DNSKEY record in the zone.
+.It Fl s
+The unix time at which the signature becomes valid.
+.It Fl e
+The unix time after which the signature is no longer valid.
+.El
+.Pp
+If neither
+.Fl k
+or
+.Fl z
+is specified, all records in the zone are signed.
+.Sh EXAMPLES
+Sign the records in the example.com zone with the key in key.pem
+.Bd -literal -offset indent
+$ rrsig key.pem example.com.zone
+example.com.    86400   IN      RRSIG   SOA 13 2 86400 20200616002419 20200517002419 32716 example.com. pT8tmBBTpTG139CBJbN1MbshvygYyaiNn713gmvMw2Y/C2dTwGSZwuriXOk7luLb+Ej9OHvcjgaNaVzWnu5IiQ==
+example.com.    86400   IN      RRSIG   A 13 2 86400 20200616002419 20200517002419 32716 example.com. ziulNlLfYTwUO0VGiVW4TSR3Pfg8j/RhUhuWCbL2rn9PVBUIr3P0ql5JHkfskfCy9BNDIW7rSIWxwuLBULfudw==
+example.com.    86400   IN      RRSIG   NS 13 2 86400 20200616002419 20200517002419 32716 example.com. 9FdDokZ6RWGcAZTgpB430T71t9NZWeCZLTqxkeDyi77vxDt5eRwCNdzdDIEYaChGIfX6NBcrFIZ9Arz7vEA+ww==
+example.com.    1200    IN      RRSIG   NSEC 13 2 1200 20200616002419 20200517002419 32716 example.com. QeClnuEuVdq0Wppv+kH0DNR3huWFw7Rack0ZuFRqEpRLfVx/NTaaieHBax4SJTgecaF2MgpT+f/yJsRe/rsr3g==
+example.com.    86400   IN      RRSIG   DNSKEY 13 2 86400 20200616002419 20200517002419 32716 example.com. ypFHj/ttCnJkzOsCSj+SM+pU7yj9jfT7IaHZpotrU1ITOQBj2x+5nhQSj7dAbi21N4Vjie1rS5vx7E6T2g0msg==
+ns1.example.com.        86400   IN      RRSIG   A 13 3 86400 20200616002419 20200517002419 32716 example.com. /M9W4asOST8JuRfibKA0hf780GX3HglEsgB1PoNuV2PCK5sTXWKVexb7wfxAeBAK/gDsLy3HQIPH2im6iRuI9g==
+ns1.example.com.        1200    IN      RRSIG   NSEC 13 3 1200 20200616002419 20200517002419 32716
+example.com. Mph6z5j6ZePdrxoO/vBr1rwA76a/0lpkUEfsiNWOtELtoPCNRrhRDxvQWM/mPfRw+plfzFXqANymU5shvPwZZA==
+.Ed
+.Sh SEE ALSO
+.Xr dnskey 1 ,
+.Xr ds 1 ,
+.Xr rrsig 1 ,
+.Xr tlsa 1

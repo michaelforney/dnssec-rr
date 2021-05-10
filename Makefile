@@ -4,6 +4,7 @@
 
 PREFIX?=/usr/local
 BINDIR?=$(PREFIX)/bin
+MANDIR?=$(PREFIX)/share/man
 CFLAGS+=-Wall -Wpedantic
 LDLIBS?=-lbearssl
 
@@ -40,6 +41,8 @@ dnskey.o ds.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
 install: $(TOOLS)
 	mkdir -p $(DESTDIR)$(BINDIR)
 	cp $(TOOLS) $(DESTDIR)$(BINDIR)/
+	mkdir -p $(DESTDIR)$(MANDIR)/man1
+	cp $(TOOLS:%=%.1) $(DESTDIR)$(MANDIR)/man1/
 
 clean:
 	rm -f $(TOOLS) $(TOOLS:%=%.o) libcommon.a $(COMMON_OBJ)

@@ -1,0 +1,36 @@
+.Dd May 10, 2021
+.Dt NSEC 1
+.Os
+.Sh NAME
+.Nm nsec
+.Nd generate NSEC records for a zone
+.Sh SYNOPSIS
+.Nm nsec
+.Op Ar zonefile
+.Sh DESCRIPTION
+.Nm
+writes DNSSEC NSEC records for a zone to standard output.
+.Pp
+The records are generated for the zone described in
+.Ar zonefile ,
+which must be in the format described by RFC 1035.
+.Pp
+An NSEC record lists the record types available at a particular
+name, and the next valid name in the zone.
+It is used to fill in the gaps between the valid records in a zone
+and is returned alongside its signature in NXDOMAIN responses to
+prove the absence of the requested record.
+.Sh OPTIONS
+None.
+.Sh EXAMPLES
+Generate NSEC records for the example.com zone:
+.Bd -literal -offset indent
+$ nsec example.com.zone
+example.com.    1200    IN      NSEC    ns1.example.com. A NS SOA RRSIG NSEC DNSKEY
+ns1.example.com.        1200    IN      NSEC    example.com. A RRSIG NSEC
+.Ed
+.Sh SEE ALSO
+.Xr dnskey 1 ,
+.Xr ds 1 ,
+.Xr rrsig 1 ,
+.Xr tlsa 1

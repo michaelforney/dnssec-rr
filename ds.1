@@ -1,0 +1,71 @@
+.Dd May 9, 2021
+.Dt DS 1
+.Os
+.Sh NAME
+.Nm ds
+.Nd generate DNSSEC delegation signer record
+.Sh SYNOPSIS
+.Nm ds
+.Op Fl Ar d digest
+.Op Fl Ar t ttl
+.Op Fl Ar c class
+.Ar domain
+.Ar keyfile
+.Sh DESCRIPTION
+.Nm
+writes a DNSSEC DS record to standard output.
+.Pp
+The record is generated for the child zone
+.Ar domain
+and public key given by
+.Ar keyfile .
+The child zone should have a corresponding self-signed DNSKEY record
+with the Secure Entry Point (SEP) flag set.
+.Pp
+A DS record is delegates record signing for a sub-zone to a particular
+key, establishing a chain of trust from a parent zone to its child.
+It contains a signature algorithm identifier, the hash of the public
+key, and a
+.Dq tag
+used to identify the key.
+It indicates that the signature of the DNSKEY RRSet of the child
+zone may be verified with the described key.
+.Pp
+DS records are usually configured through a web form provided by
+the domain registrar.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl d
+The digest algorithm to use.
+The following algorithms are supported:
+.Bl -bullet -compact
+.It
+SHA1 (1)
+.It
+SHA256 (2, default)
+.It
+SHA384 (4)
+.El
+.It Fl a
+The signature algorithm to use with the key.
+This option can be used to disambiguate the hash used with RSA keys.
+Supported algorithms are the same as in
+.Xr dnskey 1 .
+.It Fl t
+The TTL value of the record.
+If not specified, the TTL is omitted.
+.It Fl c
+The record class.
+Defaults to IN.
+.El
+.Sh EXAMPLES
+Generate a DS record for the example.com EC signing key, key.pem:
+.Bd -literal -offset indent
+$ ds example.com. key.pem
+example.com.    IN      DS      32716 13 2 ffd819c99ed62247e5fa61711a53fc0202a35970ca8ec78d874e2667556c594b
+.Ed
+.Sh SEE ALSO
+.Xr dnskey 1 ,
+.Xr nsec 1 ,
+.Xr rrsig 1 ,
+.Xr tlsa 1

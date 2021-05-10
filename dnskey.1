@@ -1,0 +1,66 @@
+.Dd May 10, 2021
+.Dt DNSKEY 1
+.Os
+.Sh NAME
+.Nm dnskey
+.Nd generate DNSSEC DNSKEY record
+.Sh SYNOPSIS
+.Nm dnskey
+.Op Fl k
+.Op Fl t Ar ttl
+.Op Fl c Ar class
+.Ar domain
+.Ar keyfile
+.Sh DESCRIPTION
+.Nm
+writes a DNSSEC DNSKEY record to standard output.
+.Pp
+The record is generated with the name
+.Ar domain
+and public key given by
+.Ar keyfile .
+.Pp
+A DNSKEY record contains a public key that can be used to verify
+the signatures of the records in a zone.
+If the Secure Entry Point (SEP) flag is set, the key may be used
+to verify signatures of the DNSKEY RRset.
+Otherwise, it may only be used to verify the signatures of other
+record types.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl k
+Set the Secure Entry Point (SEP) flag.
+.It Fl a
+The signature algorithm to use with the key.
+This option can be used to disambiguate the hash used with RSA keys.
+The following algorithms are supported:
+.Bl -bullet -compact
+.It
+RSASHA1
+.It
+RSASHA256 (default for RSA keys)
+.It
+RSASHA512
+.It
+ECDSAP256SHA256
+.It
+ECDSAP384SHA384
+.El
+.It Fl t
+The TTL value of the record.
+If not specified, the TTL is omitted.
+.It Fl c
+The record class.
+Defaults to IN.
+.El
+.Sh EXAMPLES
+Generate a DNSKEY record with the SEP flag set for the key in key.pem.
+.Bd -literal -offset indent
+$ dnskey -k example.com. key.pem
+example.com.    IN      DNSKEY  257 3 13 vj2jYoUXYP5L/Y3VKwy2tv1lTQKvieaDdg2DpZRItJ0TblzoKoJ+9WQgxi4/mq0JkFUFeltRmhPnhtXoCH7Tfw==
+.Ed
+.Sh See ALSO
+.Xr ds 1 ,
+.Xr nsec 1 ,
+.Xr rrsig 1 ,
+.Xr tlsa 1
