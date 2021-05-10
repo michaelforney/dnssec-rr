@@ -5,6 +5,9 @@
 This repository contains a few tools for working with DNSSEC. The
 tools are implemented using [BearSSL].
 
+For a detailed description of DNSSEC and how these tools fit together,
+see this [blog post].
+
 ## Generating keys
 
 You can generate your ZSK (zone-signing key) and KSK (key-signing
@@ -122,3 +125,4 @@ example.com.    IN      TLSA    3 1 1 6584317c0720726df738582b2f5d440b8162baecd0
 ```
 
 [BearSSL]: https://bearssl.org
+[blog post]: https://mforney.org/blog/2020-05-21-securing-your-zone-with-dnssec-and-dane.html
