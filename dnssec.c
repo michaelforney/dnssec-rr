@@ -97,7 +97,7 @@ int
 algorithm_from_string(const char *s)
 {
 	size_t i = find_string(algorithm_names, LEN(algorithm_names), s);
-	if (i == -1)
+	if (!i)
 		errx(1, "unknown algorithm '%s'", s);
 	return i;
 }
@@ -118,7 +118,7 @@ int
 digest_from_string(const char *s)
 {
 	size_t i = find_string(digest_names, LEN(digest_names), s);
-	if (i == -1)
+	if (!i)
 		errx(1, "unknown digest '%s'", s);
 	return i;
 }
