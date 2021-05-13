@@ -7,18 +7,21 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: dnskey [-k] [-t ttl] [-c class] domain [algorithm:]keyfile\n");
+	fprintf(stderr, "usage: dnskey [-k] [-a algorithm] [-t ttl] [-c class] domain keyfile\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int class = CLASS_IN, flags = DNSKEY_ZONE;
+	int algorithm = 0, class = CLASS_IN, flags = DNSKEY_ZONE;
 	unsigned long ttl = 0;
 	char *end;
 
 	ARGBEGIN {
+	case 'a':
+		algorithm = algorithm_from_string(EARGF(usage()));
+		break;
 	case 'k':
 		flags |= DNSKEY_SEP;
 		break;
@@ -36,7 +39,7 @@ main(int argc, char *argv[])
 	if (argc != 2)
 		usage();
 
-	struct key *sk = key_new_from_file(argv[1]);
+	struct key *sk = key_new_from_file(argv[1], algorithm);
 	struct dnskey *pk = dnskey_new(flags, sk);
 	fputs(argv[0], stdout);
 	if (ttl)

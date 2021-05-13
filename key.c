@@ -65,20 +65,15 @@ key_decode(void *ctx, const void *buf, size_t len)
 }
 
 struct key *
-key_new_from_file(const char *name)
+key_new_from_file(const char *name, int algorithm)
 {
 	br_pem_decoder_context pc;
 	br_skey_decoder_context kc;
 	char buf[BUFSIZ], *p;
 	size_t len = 0, n;
-	int done = 0, algorithm = 0;
+	int done = 0;
 	FILE *f;
 
-	if ((p = strchr(name, ':')) && !strchr(name, '/')) {
-		*p = '\0';
-		algorithm = algorithm_from_string(name);
-		name = p + 1;
-	}
 	f = fopen(name, "r");
 	if (!f)
 		err(1, "open %s", name);

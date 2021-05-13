@@ -57,7 +57,7 @@ struct key {
 	unsigned char data[];
 };
 
-struct key *key_new_from_file(const char *);
+struct key *key_new_from_file(const char *, int);
 
 /* domain names */
 enum {

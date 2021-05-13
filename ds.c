@@ -8,20 +8,23 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: ds [-d digest] [-t ttl] [-c class] domain [algorithm:]keyfile\n");
+	fprintf(stderr, "usage: ds [-d digest] [-a algorithm] [-t ttl] [-c class] domain keyfile\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int digest = DIGEST_SHA256, class = CLASS_IN;
+	int algorithm = 0, digest = DIGEST_SHA256, class = CLASS_IN;
 	unsigned long ttl = 0;
 	char *end;
 
 	ARGBEGIN {
 	case 'd':
 		digest = digest_from_string(EARGF(usage()));
+		break;
+	case 'a':
+		algorithm = algorithm_from_string(EARGF(usage()));
 		break;
 	case 't':
 		ttl = strtoul(EARGF(usage()), &end, 10);
@@ -46,7 +49,7 @@ main(int argc, char *argv[])
 		errx(1, "unsupported digest %d", digest);
 	}
 
-	struct key *sk = key_new_from_file(argv[1]);
+	struct key *sk = key_new_from_file(argv[1], algorithm);
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | DNSKEY_SEP, sk);
 
 	unsigned char dname[DNAME_MAX];

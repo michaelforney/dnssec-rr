@@ -10,14 +10,14 @@
 static void
 usage(void)
 {
-	fprintf(stderr, "usage: rrsig [-kz] [-s start] [-e end] [algorithm:]keyfile [zonefile]\n");
+	fprintf(stderr, "usage: rrsig [-kz] [-s start] [-e end] [-a algorithm] keyfile [zonefile]\n");
 	exit(2);
 }
 
 int
 main(int argc, char *argv[])
 {
-	int kflag = 0, zflag = 0;
+	int kflag = 0, zflag = 0, algorithm = 0;
 	unsigned long start_time = 0, end_time = 0;
 
 	ARGBEGIN {
@@ -31,6 +31,9 @@ main(int argc, char *argv[])
 		end_time = strtoul(EARGF(usage()), &end, 0);
 		if (*end)
 			usage();
+		break;
+	case 'a':
+		algorithm = algorithm_from_string(EARGF(usage()));
 		break;
 	case 'k':
 		kflag = 1;
@@ -60,7 +63,7 @@ main(int argc, char *argv[])
 		errx(1, "zone parse failed");
 	}
 
-	struct key *sk = key_new_from_file(argv[0]);
+	struct key *sk = key_new_from_file(argv[0], algorithm);
 	struct dnskey *pk = dnskey_new(DNSKEY_ZONE | (kflag ? DNSKEY_SEP : 0), sk);
 
 	br_hash_compat_context hc;
