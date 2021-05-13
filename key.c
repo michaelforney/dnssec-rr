@@ -20,7 +20,7 @@ key_new_ec(const br_ec_private_key *ec, int algorithm)
 	default:
 		errx(1, "unsupported curve %d", k->ec.curve);
 	}
-	if (algorithm != -1 && algorithm != k->algorithm)
+	if (algorithm && algorithm != k->algorithm)
 		errx(1, "key is incompatible with algorithm %s", algorithm_to_string(algorithm));
 	return k;
 }
@@ -49,7 +49,7 @@ key_new_rsa(const br_rsa_private_key *rsa, int algorithm)
 	case ALGORITHM_RSASHA512:
 		k->algorithm = algorithm;
 		break;
-	case -1:
+	case 0:
 		k->algorithm = ALGORITHM_RSASHA256;
 		break;
 	default:
@@ -71,7 +71,7 @@ key_new_from_file(const char *name)
 	br_skey_decoder_context kc;
 	char buf[BUFSIZ], *p;
 	size_t len = 0, n;
-	int done = 0, algorithm = -1;
+	int done = 0, algorithm = 0;
 	FILE *f;
 
 	if ((p = strchr(name, ':')) && !strchr(name, '/')) {
