@@ -432,7 +432,7 @@ again:
 			parse_error(p, p->pos, "invalid SOA: serial: %s", err);
 			goto err;
 		}
-		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		memcpy(rdata, BE32(val), 4);
 		rdata += 4;
 
 		/* refresh */
@@ -441,7 +441,7 @@ again:
 			parse_error(p, p->pos, "invalid SOA: refresh interval: %s", err);
 			goto err;
 		}
-		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		memcpy(rdata, BE32(val), 4);
 		rdata += 4;
 
 		/* retry */
@@ -450,7 +450,7 @@ again:
 			parse_error(p, p->pos, "invalid SOA: retry interval: %s", err);
 			goto err;
 		}
-		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		memcpy(rdata, BE32(val), 4);
 		rdata += 4;
 
 		/* expire */
@@ -459,7 +459,7 @@ again:
 			parse_error(p, p->pos, "invalid SOA: expire interval: %s", err);
 			goto err;
 		}
-		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		memcpy(rdata, BE32(val), 4);
 		rdata += 4;
 
 		/* minimum TTL */
@@ -468,7 +468,7 @@ again:
 			parse_error(p, p->pos, "invalid SOA: minimum TTL: %s", err);
 			goto err;
 		}
-		memcpy(rdata, &(uint32_t){htonl(val)}, 4);
+		memcpy(rdata, BE32(val), 4);
 		rdata += 4;
 		break;
 	}
@@ -486,7 +486,7 @@ again:
 			parse_error(p, NULL, "%s", strerror(errno));
 			goto err;
 		}
-		memcpy(rr->rdata, &(uint16_t){htons(preference)}, 2);
+		memcpy(rr->rdata, BE16(preference), 2);
 		memcpy(rr->rdata + 2, dname, dname_len);
 		break;
 	}
@@ -529,9 +529,9 @@ again:
 			parse_error(p, NULL, "%s", strerror(errno));
 			return NULL;
 		}
-		memcpy(rr->rdata, &(uint16_t){htons(priority)}, 2);
-		memcpy(rr->rdata + 2, &(uint16_t){htons(weight)}, 2);
-		memcpy(rr->rdata + 4, &(uint16_t){htons(port)}, 2);
+		memcpy(rr->rdata, BE16(priority), 2);
+		memcpy(rr->rdata + 2, BE16(weight), 2);
+		memcpy(rr->rdata + 4, BE16(port), 2);
 		memcpy(rr->rdata + 6, dname, dname_len);
 		break;
 	}
@@ -602,7 +602,7 @@ again:
 		if (p->err)
 			goto err;
 		rr = rr_new(4 + len * 3 / 4);
-		memcpy(rr->rdata, &(uint16_t){htons(flags)}, 2);
+		memcpy(rr->rdata, BE16(flags), 2);
 		rr->rdata[2] = protocol;
 		rr->rdata[3] = algorithm;
 		len = base64_decode(rr->rdata + 4, p->tmp);

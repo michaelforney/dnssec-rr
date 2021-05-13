@@ -1,4 +1,3 @@
-#include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <err.h>
@@ -276,7 +275,7 @@ dnskey_new(unsigned flags, const struct key *sk)
 		for (k->data[0] = 4; !(e & 0xff000000); --k->data[0])
 			e <<= 8;
 		k->data_len = 1 + k->data[0] + nlen;
-		memcpy(k->data + 1, &(uint32_t){htonl(e)}, k->data[0]);
+		memcpy(k->data + 1, BE32(e), k->data[0]);
 		br_rsa_compute_modulus_get_default()(k->data + 1 + k->data[0], &sk->rsa);
 		break;
 	}

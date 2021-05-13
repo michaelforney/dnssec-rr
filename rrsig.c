@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <arpa/inet.h>
 #include <err.h>
 #include "dnssec.h"
 #include "arg.h"
@@ -119,20 +118,20 @@ main(int argc, char *argv[])
 		dname_print(z.rr[0]->name);
 		putchar(' ');
 		hc.vtable->init(&hc.vtable);
-		hc.vtable->update(&hc.vtable, &(uint16_t){htons(rr->type)}, 2);
+		hc.vtable->update(&hc.vtable, BE16(rr->type), 2);
 		hc.vtable->update(&hc.vtable, &(uint8_t){sk->algorithm}, 1);
 		hc.vtable->update(&hc.vtable, &(uint8_t){labels}, 1);
-		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(rr->ttl)}, 4);
-		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(end_time)}, 4);
-		hc.vtable->update(&hc.vtable, &(uint32_t){htonl(start_time)}, 4);
-		hc.vtable->update(&hc.vtable, &(uint16_t){htons(tag)}, 2);
+		hc.vtable->update(&hc.vtable, BE32(rr->ttl), 4);
+		hc.vtable->update(&hc.vtable, BE32(end_time), 4);
+		hc.vtable->update(&hc.vtable, BE32(start_time), 4);
+		hc.vtable->update(&hc.vtable, BE16(tag), 2);
 		hc.vtable->update(&hc.vtable, z.rr[0]->name, z.rr[0]->name_len);
 		do {
 			hc.vtable->update(&hc.vtable, z.rr[j]->name, z.rr[j]->name_len);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->type)}, 2);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->class)}, 2);
-			hc.vtable->update(&hc.vtable, &(uint32_t){htonl(z.rr[j]->ttl)}, 4);
-			hc.vtable->update(&hc.vtable, &(uint16_t){htons(z.rr[j]->rdata_len)}, 2);
+			hc.vtable->update(&hc.vtable, BE16(z.rr[j]->type), 2);
+			hc.vtable->update(&hc.vtable, BE16(z.rr[j]->class), 2);
+			hc.vtable->update(&hc.vtable, BE32(z.rr[j]->ttl), 4);
+			hc.vtable->update(&hc.vtable, BE16(z.rr[j]->rdata_len), 2);
 			hc.vtable->update(&hc.vtable, z.rr[j]->rdata, z.rr[j]->rdata_len);
 		} while (++j < z.rr_len && dname_compare(rr->name, z.rr[j]->name) == 0 && rr->type == z.rr[j]->type);
 

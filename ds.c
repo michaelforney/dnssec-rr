@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <arpa/inet.h>
 #include <err.h>
 #include "dnssec.h"
 #include "arg.h"
@@ -59,7 +58,7 @@ main(int argc, char *argv[])
 
 	hc.vtable->init(&hc.vtable);
 	hc.vtable->update(&hc.vtable, dname, dname_len);
-	hc.vtable->update(&hc.vtable, &(uint16_t){htons(pk->flags)}, 2);
+	hc.vtable->update(&hc.vtable, BE16(pk->flags), 2);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->protocol}, 1);
 	hc.vtable->update(&hc.vtable, &(uint8_t){pk->algorithm}, 1);
 	hc.vtable->update(&hc.vtable, pk->data, pk->data_len);
