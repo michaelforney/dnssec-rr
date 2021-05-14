@@ -13,18 +13,18 @@ COMMON_OBJ=\
 	dnssec.o\
 	key.o\
 	zone.o
-TOOLS=ds dnskey nsec rrsig tlsa
+TOOLS=dnskey ds nsec rrsig tlsa
 
 all: $(TOOLS)
 
 libcommon.a: $(COMMON_OBJ)
 	$(AR) -rc $@ $(COMMON_OBJ)
 
-ds: ds.o libcommon.a
-	$(CC) $(LDFLAGS) -o $@ ds.o libcommon.a $(LDLIBS)
-
 dnskey: dnskey.o libcommon.a
 	$(CC) $(LDFLAGS) -o $@ dnskey.o libcommon.a $(LDLIBS)
+
+ds: ds.o libcommon.a
+	$(CC) $(LDFLAGS) -o $@ ds.o libcommon.a $(LDLIBS)
 
 nsec: nsec.o libcommon.a
 	$(CC) $(LDFLAGS) -o $@ nsec.o libcommon.a $(LDLIBS)
@@ -35,7 +35,7 @@ rrsig: rrsig.o libcommon.a
 tlsa: tlsa.o libcommon.a
 	$(CC) $(LDFLAGS) -o $@ tlsa.o libcommon.a $(LDLIBS)
 
-ds.o dnskey.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
+dnskey.o ds.o nsec.o rrsig.o $(COMMON_OBJ): dnssec.h
 
 install: $(TOOLS)
 	mkdir -p $(DESTDIR)$(BINDIR)
