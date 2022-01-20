@@ -94,6 +94,7 @@ unsigned dnskey_tag(const struct dnskey *);
 size_t base16_decode(unsigned char *, const char *);
 
 /* base64 */
+#define base64_length(n) (((n) + 2) / 3 * 4)
 void base64_encode(char *, const unsigned char *, size_t);
 size_t base64_decode(unsigned char *, const char *);
 
