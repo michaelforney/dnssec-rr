@@ -562,7 +562,7 @@ again:
 				goto err;
 			if (ret == 0)
 				break;
-			len += p->tmp[len] + 1;
+			len += ((unsigned char *)p->tmp)[len] + 1;
 		}
 		if (!(rr = rr_new(len))) {
 			parse_error(p, NULL, "%s", strerror(errno));
