@@ -315,7 +315,7 @@ again:
 		if (next_item(p) == 0)
 			continue;
 		if (p->err)
-			return NULL;
+			goto err;
 		if (p->pos != p->buf)
 			break;
 		if (*p->pos != '$') {
@@ -448,11 +448,11 @@ again:
 	case TYPE_CNAME:
 		if ((dname_len = parse_dname(p, dname, &err)) == 0) {
 			parse_error(p, p->pos, "invalid %s: %s", type_to_string(type), err);
-			return NULL;
+			goto err;
 		}
 		if (!(rr = rr_new(dname_len))) {
 			parse_error(p, NULL, "%s", strerror(errno));
-			return NULL;
+			goto err;
 		}
 		memcpy(rr->rdata, dname, dname_len);
 		break;
@@ -590,25 +590,25 @@ again:
 		unsigned priority = parse_int(p, &err);
 		if (p->err) {
 			parse_error(p, p->pos, "invalid SRV: priority: %s", err);
-			return NULL;
+			goto err;
 		}
 		unsigned weight = parse_int(p, &err);
 		if (p->err) {
 			parse_error(p, p->pos, "invalid SRV: weight: %s", err);
-			return NULL;
+			goto err;
 		}
 		unsigned port = parse_int(p, &err);
 		if (err) {
 			parse_error(p, p->pos, "invalid SRV: port: %s", err);
-			return NULL;
+			goto err;
 		}
 		if (!(dname_len = parse_dname(p, dname, &err))) {
 			parse_error(p, p->pos, "invalid SRV: %s", err);
-			return NULL;
+			goto err;
 		}
 		if (!(rr = rr_new(6 + dname_len))) {
 			parse_error(p, NULL, "%s", strerror(errno));
-			return NULL;
+			goto err;
 		}
 		memcpy(rr->rdata, BE16(priority), 2);
 		memcpy(rr->rdata + 2, BE16(weight), 2);
