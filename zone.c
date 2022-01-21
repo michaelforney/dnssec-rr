@@ -178,6 +178,60 @@ parse_item(struct parser *p, size_t *len)
 	return item;
 }
 
+static int
+parse_text(struct parser *p, char buf[static 256])
+{
+	int chr, ret;
+	char *pos, *dst;
+	size_t len;
+
+	ret = next_item(p);
+	if (ret != 1)
+		return ret;
+	pos = p->pos;
+	if (*pos != '"') {
+		pos = parse_item(p, &len);
+		if (!pos)
+			return -1;
+		if (len > 255)
+			parse_error(p, pos, "character string is too long");
+		*(unsigned char *)buf = len;
+		memcpy(buf + 1, pos, len);
+		return 1;
+	}
+	++pos;
+	dst = buf + 1;
+	for (;;) {
+		chr = *pos;
+		switch (chr) {
+		case '"':
+			goto done;
+		case '\\':
+			chr = *++pos;
+			if (!chr) {
+		case '\0':
+				if (next_line(p) != 0)
+					return -1;
+				pos = p->pos;
+				chr = '\n';
+				break;
+			}
+			/* fallthrough */
+		default:
+			++pos;
+		}
+		if (dst - buf == 256) {
+			parse_error(p, pos, "character string is too long");
+			return -1;
+		}
+		*dst++ = chr;
+	}
+done:
+	p->pos = pos + 1;
+	*(unsigned char *)buf = dst - buf - 1;
+	return 1;
+}
+
 static size_t
 parse_data(struct parser *p)
 {
@@ -488,6 +542,33 @@ again:
 		}
 		memcpy(rr->rdata, BE16(preference), 2);
 		memcpy(rr->rdata + 2, dname, dname_len);
+		break;
+	}
+	case TYPE_TXT: {
+		size_t len = 0;
+		for (;;) {
+			size_t new_tmp_len = len + 256;
+			if (new_tmp_len > p->tmp_len) {
+				char *new_tmp = realloc(p->tmp, new_tmp_len);
+				if (!new_tmp) {
+					parse_error(p, NULL, "%s", strerror(errno));
+					return 0;
+				}
+				p->tmp = new_tmp;
+				p->tmp_len = new_tmp_len;
+			}
+			int ret = parse_text(p, p->tmp + len);
+			if (ret == -1)
+				goto err;
+			if (ret == 0)
+				break;
+			len += p->tmp[len] + 1;
+		}
+		if (!(rr = rr_new(len))) {
+			parse_error(p, NULL, "%s", strerror(errno));
+			goto err;
+		}
+		memcpy(rr->rdata, p->tmp, len);
 		break;
 	}
 	case TYPE_AAAA:

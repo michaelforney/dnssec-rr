@@ -9,6 +9,7 @@ enum {
 	TYPE_CNAME  = 5,
 	TYPE_SOA    = 6,
 	TYPE_MX     = 15,
+	TYPE_TXT    = 16,
 	TYPE_AAAA   = 28,
 	TYPE_SRV    = 33,
 	TYPE_DS     = 43,

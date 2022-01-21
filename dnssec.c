@@ -23,6 +23,7 @@ static const char *type_names[] = {
 	[TYPE_CNAME]  = "CNAME",
 	[TYPE_SOA]    = "SOA",
 	[TYPE_MX]     = "MX",
+	[TYPE_TXT]    = "TXT",
 	[TYPE_AAAA]   = "AAAA",
 	[TYPE_SRV]    = "SRV",
 	[TYPE_DS]     = "DS",
