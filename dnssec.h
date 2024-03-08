@@ -1,7 +1,7 @@
 #include <bearssl.h>
 
-#define BE32(x) (unsigned char[]){x >> 24, x >> 16, x >> 8, x}
-#define BE16(x) (unsigned char[]){x >> 8, x}
+#define BE32(x) (unsigned char[]){(x) >> 24 & 0xff, (x) >> 16 & 0xff, (x) >> 8 & 0xff, (x) & 0xff}
+#define BE16(x) (unsigned char[]){(x) >> 8 & 0xff, (x) & 0xff}
 
 enum {
 	TYPE_A      = 1,
